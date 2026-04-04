@@ -1,0 +1,8 @@
+INSERT DATA {
+  <${reserva_id}> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://amaturis.org/ontology#Reserva> ;
+                  <http://amaturis.org/ontology#realizaReserva> <${user_id}> ;
+                  <http://amaturis.org/ontology#reservaPaquete> <${paquete_id}> ;
+                  <http://amaturis.org/ontology#fechaInicio> "${fecha_inicio}"^^<http://www.w3.org/2001/XMLSchema#date> ;
+                  <http://amaturis.org/ontology#numeroViajeros> ${num_viajeros} ;
+                  <http://amaturis.org/ontology#tieneEstado> "${estado}" .
+}

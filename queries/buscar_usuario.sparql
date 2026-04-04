@@ -1,0 +1,11 @@
+PREFIX ex: <http://amaturis.org/ontology#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+SELECT ?userURI ?passwordHash ?nombre
+WHERE {
+  ?userURI rdf:type ex:Turista .
+  ?userURI ex:email "${email}" .
+  ?userURI ex:passwordHash ?passwordHash .
+  ?userURI ex:nombre ?nombre .
+}
+LIMIT 1

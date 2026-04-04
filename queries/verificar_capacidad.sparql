@@ -1,0 +1,19 @@
+PREFIX ex: <http://amaturis.org/ontology#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?capacidadMax (SUM(?viajeros) AS ?totalOcupado)
+WHERE {
+  # Buscamos la capacidad en el paquete
+  <${paquete_id}> ex:capacidadMaxPersonas ?capacidadMax .
+  
+  # Buscamos reservas previas
+  OPTIONAL {
+    ?reserva a ex:Reserva ;
+             ex:reservaPaquete <${paquete_id}> ;
+             ex:fechaInicio "${fecha_viaje}"^^xsd:date ;
+             ex:numeroViajeros ?viajeros ;
+             ex:tieneEstado ?estado .
+    FILTER(?estado != "Cancelada")
+  }
+}
+GROUP BY ?capacidadMax

@@ -1,0 +1,11 @@
+PREFIX ex: <http://amaturis.org/ontology#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+INSERT DATA {
+  ex:${user_id} rdf:type ex:Turista ;
+                ex:nombre "${nombre}" ;
+                ex:email "${email}" ;
+                ex:passwordHash "${password_hash}" ;
+                ex:fechaRegistro "${fecha_actual}"^^xsd:dateTime .
+}

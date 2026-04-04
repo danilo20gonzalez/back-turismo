@@ -1,0 +1,17 @@
+# queries/paquetes.sparql
+PREFIX ex: <http://amaturis.org/ontology#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+SELECT ?paquete ?nombre ?precio ?descripcion
+WHERE {
+  ?paquete rdf:type ex:PaqueteTuristico .
+  ?paquete ex:nombre ?nombre .
+  ?paquete ex:precioPorPersona ?precio .
+  ?paquete ex:descripcion ?descripcion .
+  
+  # Filtro de precio (usamos el parámetro que definimos en Python)
+  FILTER(?precio <= ${max_precio})
+  
+  # Buscamos coincidencias con el perfil en nombre o descripción
+  FILTER(CONTAINS(LCASE(?descripcion), LCASE("${perfil}")) || CONTAINS(LCASE(?nombre), LCASE("${perfil}")))
+}

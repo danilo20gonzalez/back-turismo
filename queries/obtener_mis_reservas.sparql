@@ -1,0 +1,27 @@
+PREFIX ex: <http://amaturis.org/ontology#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+SELECT ?reserva ?paquete_id ?fecha ?personas ?estado ?precio_unitario ?comunidad_nombre ?total_pagar
+WHERE {
+  # Datos obligatorios de la reserva
+  ?reserva rdf:type ex:Reserva ;
+           ex:realizaReserva <${user_id}> ;
+           ex:reservaPaquete ?paquete ;
+           ex:fechaInicio ?fecha ;
+           ex:numeroViajeros ?personas ;
+           ex:tieneEstado ?estado .
+  
+  BIND(STRAFTER(STR(?paquete), "#") AS ?paquete_id)
+
+  # Datos opcionales: si no existen, la reserva se muestra de todos modos
+  OPTIONAL {
+    ?paquete ex:precioPersona ?precio_unitario .
+    BIND(?precio_unitario * ?personas AS ?total_pagar)
+  }
+  
+  OPTIONAL {
+    ?paquete ex:ofrecidoPor ?comunidad .
+    ?comunidad ex:nombreComunidad ?comunidad_nombre .
+  }
+}
+ORDER BY DESC(?fecha)
