@@ -1,6 +1,12 @@
 # services/paquete_service.py
 from sparql_client import SparqlClient
 from models.paquete import Paquete
+from models.paquete_detalle import (
+    PaqueteDetalle,
+    PaqueteDetalleDestino,
+    PaqueteDetalleServicio,
+    PaqueteDetalleItinerario,
+)
 
 client = SparqlClient()
 
@@ -47,3 +53,98 @@ class PaqueteService:
                 capacidad_max_personas=capacidad,
             ))
         return paquetes
+
+    @staticmethod
+    def obtener_detalle(paquete_id: str):
+        params = {"id": paquete_id}
+        base_results = client.execute_query("paquete_detalle_base", params)
+        if not base_results:
+            return None
+
+        base = base_results[0]
+
+        def get_value(res, key):
+            return res[key]["value"] if key in res else None
+
+        detalle = PaqueteDetalle(
+            id=get_value(base, "paquete"),
+            nombre=get_value(base, "nombre"),
+            descripcion=get_value(base, "descripcion"),
+            precio=float(get_value(base, "precio")),
+            duracion_dias=int(get_value(base, "duracion")) if get_value(base, "duracion") else None,
+            dificultad=get_value(base, "dificultad"),
+            capacidad_max_personas=int(get_value(base, "capacidad")) if get_value(base, "capacidad") else None,
+            incluye_descripcion=get_value(base, "incluye"),
+            no_incluye=get_value(base, "noIncluye"),
+        )
+
+        destinos_results = client.execute_query("paquete_detalle_destinos", params)
+        destinos = []
+        destinos_seen = set()
+        for res in destinos_results:
+            nombre = get_value(res, "destinoNombre")
+            if not nombre:
+                continue
+            municipio = get_value(res, "municipioNombre")
+            lat_raw = get_value(res, "lat")
+            lon_raw = get_value(res, "lon")
+            categoria = get_value(res, "categoriaLabel")
+            lat = float(lat_raw) if lat_raw else None
+            lon = float(lon_raw) if lon_raw else None
+            key = (nombre, municipio, lat, lon, categoria)
+            if key in destinos_seen:
+                continue
+            destinos_seen.add(key)
+            destinos.append(
+                PaqueteDetalleDestino(
+                    nombre=nombre,
+                    municipio=municipio,
+                    latitud=lat,
+                    longitud=lon,
+                    categoria=categoria,
+                )
+            )
+
+        servicios_results = client.execute_query("paquete_detalle_servicios", params)
+        servicios = []
+        servicios_seen = set()
+        for res in servicios_results:
+            nombre = get_value(res, "servicioNombre")
+            if not nombre:
+                continue
+            tipo = get_value(res, "tipoLabel")
+            key = (nombre, tipo)
+            if key in servicios_seen:
+                continue
+            servicios_seen.add(key)
+            servicios.append(
+                PaqueteDetalleServicio(
+                    nombre=nombre,
+                    tipo=tipo,
+                )
+            )
+
+        itinerarios_results = client.execute_query("paquete_detalle_itinerarios", params)
+        itinerarios = []
+        itinerarios_seen = set()
+        for res in itinerarios_results:
+            titulo = get_value(res, "titulo")
+            descripcion = get_value(res, "descripcion")
+            if not titulo and not descripcion:
+                continue
+            key = (titulo, descripcion)
+            if key in itinerarios_seen:
+                continue
+            itinerarios_seen.add(key)
+            itinerarios.append(
+                PaqueteDetalleItinerario(
+                    titulo=titulo,
+                    descripcion=descripcion,
+                )
+            )
+
+        detalle.destinos = destinos or None
+        detalle.servicios = servicios or None
+        detalle.itinerarios = itinerarios or None
+
+        return detalle

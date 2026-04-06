@@ -1,0 +1,32 @@
+﻿# queries/paquete_detalle_base.sparql
+PREFIX ex: <http://amaturis.org/ontology#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?paquete ?nombre ?descripcion ?precio ?duracion ?dificultad ?capacidad ?incluye ?noIncluye
+WHERE {
+  BIND(
+    IF(
+      STRSTARTS("${id}", "http"),
+      IRI("${id}"),
+      IRI(CONCAT("http://amaturis.org/ontology#", "${id}"))
+    ) AS ?paquete
+  )
+
+  ?paquete rdf:type ex:PaqueteTuristico ;
+          ex:nombre ?nombre ;
+          ex:descripcion ?descripcion ;
+          ex:tienePrecio ?precioSpec .
+  ?precioSpec ex:precioPorPersona ?precio .
+
+  OPTIONAL { ?paquete ex:duracionDias ?duracion . }
+  OPTIONAL { ?paquete ex:capacidadMaxPersonas ?capacidad . }
+  OPTIONAL { ?paquete ex:incluyeDescripcion ?incluye . }
+  OPTIONAL { ?paquete ex:noIncluye ?noIncluye . }
+
+  OPTIONAL {
+    ?paquete ex:tieneDificultad ?dif .
+    OPTIONAL { ?dif rdfs:label ?difLabel . }
+    BIND(COALESCE(?difLabel, STR(?dif)) AS ?dificultad)
+  }
+}
