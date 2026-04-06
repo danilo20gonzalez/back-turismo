@@ -1,6 +1,7 @@
 from SPARQLWrapper import SPARQLWrapper, JSON, POST
 from config import settings
 import os
+import re
 
 class SparqlClient:
     def __init__(self):
@@ -15,8 +16,25 @@ class SparqlClient:
         
         if params:
             for key, value in params.items():
-                # Reemplaza ${key} por el valor (ej: ${perfil} -> 'aventura')
-                query_str = query_str.replace(f"${{{key}}}", str(value))
+                # Reemplaza ${key} por el valor, escapando strings para evitar inyecciones
+                placeholder = f"${{{key}}}"
+                if isinstance(value, str):
+                    escaped = value.replace("\\", "\\\\").replace("\"", "\\\"")
+                    quoted_placeholder = f"\"{placeholder}\""
+                    if quoted_placeholder in query_str:
+                        query_str = query_str.replace(quoted_placeholder, f"\"{escaped}\"")
+                    else:
+                        query_str = query_str.replace(placeholder, escaped)
+                else:
+                    query_str = query_str.replace(placeholder, str(value))
+
+            # Paginacion: si hay limit/offset, reemplazamos valores numericos fijos
+            if "limit" in params:
+                limit_value = int(params["limit"])
+                query_str = re.sub(r"(?im)^\s*LIMIT\s+\d+", f"LIMIT {limit_value}", query_str)
+            if "offset" in params:
+                offset_value = int(params["offset"])
+                query_str = re.sub(r"(?im)^\s*OFFSET\s+\d+", f"OFFSET {offset_value}", query_str)
         return query_str
 
     def execute_query(self, query_name: str, params: dict = None):
@@ -32,7 +50,7 @@ class SparqlClient:
             return results["results"]["bindings"]
         except Exception as e:
             print(f"Error en query SPARQL: {e}")
-            return []
+            raise
 
     def execute_update(self, query_name: str, params: dict = None):
         sparql = SPARQLWrapper(self.update_url)
@@ -49,4 +67,4 @@ class SparqlClient:
             return True
         except Exception as e:
             print(f"ERROR FUSEKI: {e}")
-            return None
+            raise
