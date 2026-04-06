@@ -1,0 +1,9 @@
+# queries/sitios_capacidad_rango.sparql
+PREFIX ex: <http://amaturis.org/ontology#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+SELECT (MIN(?cap) AS ?min_cap) (MAX(?cap) AS ?max_cap)
+WHERE {
+  ?destino rdf:type ex:DestinoTuristico ;
+           ex:capacidadCargaDiaria ?cap .
+}
