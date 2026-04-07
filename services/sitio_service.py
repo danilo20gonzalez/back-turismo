@@ -3,12 +3,43 @@ from typing import Optional
 from sparql_client import SparqlClient
 from models.sitio import Sitio
 from models.sitio_filtros import SitioFiltros, SitioTipo, SitioMunicipio
+from models.sitio_detalle import SitioDetalle
+from models.paquete import Paquete
 
 
 client = SparqlClient()
 
 
 class SitioService:
+    @staticmethod
+    def _parse_paquetes(raw_results):
+        paquetes = []
+        for res in raw_results:
+            dirigido_a = res["dirigidoA"]["value"] if "dirigidoA" in res else None
+            duracion_dias = int(res["duracion"]["value"]) if "duracion" in res else None
+            dificultad = res["dificultad"]["value"] if "dificultad" in res else None
+            destinos = res["destinos"]["value"] if "destinos" in res else None
+            municipios = res["municipios"]["value"] if "municipios" in res else None
+            categorias = res["categorias"]["value"] if "categorias" in res else None
+            capacidad = int(res["capacidad"]["value"]) if "capacidad" in res else None
+
+            paquetes.append(
+                Paquete(
+                    id=res["paquete"]["value"],
+                    nombre=res["nombre"]["value"],
+                    precio=float(res["precio"]["value"]),
+                    descripcion=res["descripcion"]["value"],
+                    dirigidoA=dirigido_a,
+                    duracion_dias=duracion_dias,
+                    dificultad=dificultad,
+                    destinos=destinos,
+                    municipios=municipios,
+                    categorias=categorias,
+                    capacidad_max_personas=capacidad,
+                )
+            )
+        return paquetes
+
     @staticmethod
     def listar_sitios(
         busqueda: str,
@@ -110,3 +141,42 @@ class SitioService:
             capacidad_min=capacidad_min,
             capacidad_max=capacidad_max,
         )
+
+    @staticmethod
+    def obtener_detalle(sitio_id: str):
+        params = {"id": sitio_id}
+        resultados = client.execute_query("sitio_detalle", params)
+        if not resultados:
+            return None
+
+        res = resultados[0]
+
+        def get_value(key: str):
+            return res[key]["value"] if key in res else None
+
+        capacidad = get_value("capacidad")
+        lat = get_value("lat")
+        lon = get_value("lon")
+
+        return SitioDetalle(
+            id=get_value("destino"),
+            nombre=get_value("nombre"),
+            descripcion=get_value("descripcion"),
+            municipio=get_value("municipio"),
+            capacidad_diaria=int(capacidad) if capacidad else None,
+            latitud=float(lat) if lat else None,
+            longitud=float(lon) if lon else None,
+            tipos=get_value("tipos"),
+        )
+
+    @staticmethod
+    def obtener_planes(sitio_id: str, limit: int, offset: int):
+        limit = max(1, min(limit, 100))
+        offset = max(0, offset)
+        params = {
+            "id": sitio_id,
+            "limit": limit,
+            "offset": offset,
+        }
+        raw_results = client.execute_query("sitio_planes", params)
+        return SitioService._parse_paquetes(raw_results)

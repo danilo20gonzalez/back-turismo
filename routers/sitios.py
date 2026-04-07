@@ -1,5 +1,5 @@
 # routers/sitios.py
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from typing import Optional
 from services.sitio_service import SitioService
 
@@ -33,3 +33,20 @@ def listar_sitios(
 @router.get("/filtros")
 def obtener_filtros():
     return SitioService.obtener_filtros()
+
+
+@router.get("/{sitio_id}")
+def obtener_detalle_sitio(sitio_id: str):
+    detalle = SitioService.obtener_detalle(sitio_id)
+    if detalle is None:
+        raise HTTPException(status_code=404, detail="Sitio no encontrado")
+    return detalle
+
+
+@router.get("/{sitio_id}/planes")
+def obtener_planes_por_sitio(
+    sitio_id: str,
+    limit: int = 50,
+    offset: int = 0,
+):
+    return SitioService.obtener_planes(sitio_id, limit, offset)

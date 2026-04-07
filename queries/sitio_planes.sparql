@@ -1,0 +1,58 @@
+# queries/sitio_planes.sparql
+PREFIX ex: <http://amaturis.org/ontology#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT
+  ?paquete ?nombre ?descripcion ?precio ?duracion ?dificultad ?capacidad
+  (GROUP_CONCAT(DISTINCT ?destinoLabel; separator=" | ") AS ?destinos)
+  (GROUP_CONCAT(DISTINCT ?municipioLabel; separator=" | ") AS ?municipios)
+  (GROUP_CONCAT(DISTINCT ?categoriaLabel; separator=" | ") AS ?categorias)
+WHERE {
+  BIND(
+    IF(
+      STRSTARTS("${id}", "http"),
+      IRI("${id}"),
+      IRI(CONCAT("http://amaturis.org/ontology#", "${id}"))
+    ) AS ?destinoFiltro
+  )
+
+  ?paquete rdf:type ex:PaqueteTuristico ;
+          ex:nombre ?nombre ;
+          ex:descripcion ?descripcion ;
+          ex:tienePrecio ?precioSpec ;
+          ex:visitaDestino ?destinoFiltro .
+  ?precioSpec ex:precioPorPersona ?precio .
+
+  OPTIONAL { ?paquete ex:duracionDias ?duracion . }
+  OPTIONAL { ?paquete ex:capacidadMaxPersonas ?capacidad . }
+
+  OPTIONAL {
+    ?paquete ex:tieneDificultad ?dif .
+    OPTIONAL { ?dif rdfs:label ?difLabel . }
+    BIND(COALESCE(?difLabel, STR(?dif)) AS ?dificultad)
+  }
+
+  OPTIONAL {
+    ?paquete ex:visitaDestino ?destino .
+    OPTIONAL { ?destino rdfs:label ?destinoLabelRaw . }
+    BIND(COALESCE(?destinoLabelRaw, STRAFTER(STR(?destino), "#")) AS ?destinoLabel)
+
+    OPTIONAL {
+      ?destino ex:ubicadoEn ?municipio .
+      OPTIONAL { ?municipio rdfs:label ?municipioLabelRaw . }
+      BIND(COALESCE(?municipioLabelRaw, STRAFTER(STR(?municipio), "#")) AS ?municipioLabel)
+    }
+
+    OPTIONAL {
+      ?destino rdf:type ?categoria .
+      FILTER(?categoria != ex:DestinoTuristico)
+      OPTIONAL { ?categoria rdfs:label ?categoriaLabelRaw . }
+      BIND(COALESCE(?categoriaLabelRaw, STRAFTER(STR(?categoria), "#")) AS ?categoriaLabel)
+    }
+  }
+}
+GROUP BY ?paquete ?nombre ?descripcion ?precio ?duracion ?dificultad ?capacidad
+ORDER BY ?nombre
+LIMIT 50
+OFFSET 0
