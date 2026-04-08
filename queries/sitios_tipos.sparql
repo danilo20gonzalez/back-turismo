@@ -1,0 +1,16 @@
+# queries/sitios_tipos.sparql
+PREFIX ex: <http://amaturis.org/ontology#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?tipo ?nombre (COUNT(?destino) AS ?total)
+WHERE {
+  ?destino rdf:type ex:DestinoTuristico ;
+           rdf:type ?tipo .
+  FILTER(?tipo != ex:DestinoTuristico)
+
+  OPTIONAL { ?tipo rdfs:label ?nombreRaw . }
+  BIND(COALESCE(?nombreRaw, STRAFTER(STR(?tipo), "#")) AS ?nombre)
+}
+GROUP BY ?tipo ?nombre
+ORDER BY DESC(?total) ?nombre

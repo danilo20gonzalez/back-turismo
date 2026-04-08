@@ -1,0 +1,37 @@
+﻿# queries/paquete_detalle_destinos.sparql
+PREFIX ex: <http://amaturis.org/ontology#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?destinoNombre ?municipioNombre ?lat ?lon ?categoriaLabel
+WHERE {
+  BIND(
+    IF(
+      STRSTARTS("${id}", "http"),
+      IRI("${id}"),
+      IRI(CONCAT("http://amaturis.org/ontology#", "${id}"))
+    ) AS ?paquete
+  )
+
+  ?paquete ex:visitaDestino ?destino .
+
+  OPTIONAL { ?destino rdfs:label ?destinoLabel . }
+  OPTIONAL { ?destino ex:nombre ?destinoNombreRaw . }
+  BIND(COALESCE(?destinoLabel, ?destinoNombreRaw, STRAFTER(STR(?destino), "#")) AS ?destinoNombre)
+
+  OPTIONAL {
+    ?destino ex:ubicadoEn ?municipio .
+    OPTIONAL { ?municipio rdfs:label ?municipioLabel . }
+    BIND(COALESCE(?municipioLabel, STRAFTER(STR(?municipio), "#")) AS ?municipioNombre)
+  }
+
+  OPTIONAL { ?destino ex:latitud ?lat . }
+  OPTIONAL { ?destino ex:longitud ?lon . }
+
+  OPTIONAL {
+    ?destino rdf:type ?categoria .
+    FILTER(?categoria != ex:DestinoTuristico)
+    OPTIONAL { ?categoria rdfs:label ?categoriaLabelRaw . }
+    BIND(COALESCE(?categoriaLabelRaw, STRAFTER(STR(?categoria), "#")) AS ?categoriaLabel)
+  }
+}

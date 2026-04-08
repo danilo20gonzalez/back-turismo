@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from routers import paquetes  # Importamos el router que crearemos
+from routers import sitios
 from routers import usuarios
 from routers import reservas
 
@@ -26,6 +27,7 @@ app.add_middleware(
 # --- Inclusión de Routers ---
 # Aquí registramos las rutas de paquetes. Luego registraremos reservas, usuarios, etc.
 app.include_router(paquetes.router)
+app.include_router(sitios.router)
 app.include_router(usuarios.router)
 app.include_router(reservas.router)
 

@@ -1,0 +1,22 @@
+﻿# queries/paquete_detalle_itinerarios.sparql
+PREFIX ex: <http://amaturis.org/ontology#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?titulo ?descripcion
+WHERE {
+  BIND(
+    IF(
+      STRSTARTS("${id}", "http"),
+      IRI("${id}"),
+      IRI(CONCAT("http://amaturis.org/ontology#", "${id}"))
+    ) AS ?paquete
+  )
+
+  ?paquete ex:tieneItinerario ?it .
+
+  OPTIONAL { ?it rdfs:label ?itLabel . }
+  OPTIONAL { ?it rdfs:comment ?itDesc . }
+  BIND(COALESCE(?itLabel, STRAFTER(STR(?it), "#")) AS ?titulo)
+  BIND(?itDesc AS ?descripcion)
+}

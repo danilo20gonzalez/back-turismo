@@ -1,0 +1,12 @@
+# queries/sitios_municipios.sparql
+PREFIX ex: <http://amaturis.org/ontology#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT DISTINCT ?municipio ?nombre
+WHERE {
+  ?municipio rdf:type ex:Municipio .
+  OPTIONAL { ?municipio rdfs:label ?nombreRaw . }
+  BIND(COALESCE(?nombreRaw, STRAFTER(STR(?municipio), "#")) AS ?nombre)
+}
+ORDER BY ?nombre

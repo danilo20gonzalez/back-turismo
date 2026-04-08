@@ -1,4 +1,4 @@
-# queries/paquetes.sparql
+# queries/sitio_planes.sparql
 PREFIX ex: <http://amaturis.org/ontology#>
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -9,12 +9,19 @@ SELECT
   (GROUP_CONCAT(DISTINCT ?municipioLabel; separator=" | ") AS ?municipios)
   (GROUP_CONCAT(DISTINCT ?categoriaLabel; separator=" | ") AS ?categorias)
 WHERE {
-  BIND("${busqueda}" AS ?q)
+  BIND(
+    IF(
+      STRSTARTS("${id}", "http"),
+      IRI("${id}"),
+      IRI(CONCAT("http://amaturis.org/ontology#", "${id}"))
+    ) AS ?destinoFiltro
+  )
 
-  ?paquete rdf:type ex:PaqueteTuristico .
-  ?paquete ex:nombre ?nombre .
-  ?paquete ex:descripcion ?descripcion .
-  ?paquete ex:tienePrecio ?precioSpec .
+  ?paquete rdf:type ex:PaqueteTuristico ;
+          ex:nombre ?nombre ;
+          ex:descripcion ?descripcion ;
+          ex:tienePrecio ?precioSpec ;
+          ex:visitaDestino ?destinoFiltro .
   ?precioSpec ex:precioPorPersona ?precio .
 
   OPTIONAL { ?paquete ex:duracionDias ?duracion . }
@@ -44,16 +51,6 @@ WHERE {
       BIND(COALESCE(?categoriaLabelRaw, STRAFTER(STR(?categoria), "#")) AS ?categoriaLabel)
     }
   }
-
-  # Filtro de precio (usamos el parametro que definimos en Python)
-  FILTER(?precio <= ${max_precio})
-
-  # Buscamos coincidencias con el texto de busqueda en nombre o descripcion
-  FILTER(
-    ?q = "" ||
-    CONTAINS(LCASE(STR(?descripcion)), LCASE(?q)) ||
-    CONTAINS(LCASE(STR(?nombre)), LCASE(?q))
-  )
 }
 GROUP BY ?paquete ?nombre ?descripcion ?precio ?duracion ?dificultad ?capacidad
 ORDER BY ?nombre

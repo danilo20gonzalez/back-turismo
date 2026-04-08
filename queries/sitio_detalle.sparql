@@ -1,0 +1,40 @@
+# queries/sitio_detalle.sparql
+PREFIX ex: <http://amaturis.org/ontology#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?destino ?nombre ?descripcion ?municipio ?capacidad ?lat ?lon
+  (GROUP_CONCAT(DISTINCT ?tipoLabel; separator=" | ") AS ?tipos)
+WHERE {
+  BIND(
+    IF(
+      STRSTARTS("${id}", "http"),
+      IRI("${id}"),
+      IRI(CONCAT("http://amaturis.org/ontology#", "${id}"))
+    ) AS ?destino
+  )
+
+  ?destino rdf:type ex:DestinoTuristico .
+
+  OPTIONAL { ?destino rdfs:label ?nombreRaw . }
+  BIND(COALESCE(?nombreRaw, STRAFTER(STR(?destino), "#")) AS ?nombre)
+
+  OPTIONAL { ?destino ex:descripcion ?descripcion . }
+  OPTIONAL { ?destino ex:capacidadCargaDiaria ?capacidad . }
+  OPTIONAL { ?destino ex:latitud ?lat . }
+  OPTIONAL { ?destino ex:longitud ?lon . }
+
+  OPTIONAL {
+    ?destino ex:ubicadoEn ?muni .
+    OPTIONAL { ?muni rdfs:label ?muniLabel . }
+    BIND(COALESCE(?muniLabel, STRAFTER(STR(?muni), "#")) AS ?municipio)
+  }
+
+  OPTIONAL {
+    ?destino rdf:type ?tipo .
+    FILTER(?tipo != ex:DestinoTuristico)
+    OPTIONAL { ?tipo rdfs:label ?tipoLabelRaw . }
+    BIND(COALESCE(?tipoLabelRaw, STRAFTER(STR(?tipo), "#")) AS ?tipoLabel)
+  }
+}
+GROUP BY ?destino ?nombre ?descripcion ?municipio ?capacidad ?lat ?lon

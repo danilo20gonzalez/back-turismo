@@ -1,0 +1,84 @@
+# queries/sitios.sparql
+PREFIX ex: <http://amaturis.org/ontology#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT
+  ?destino ?nombre ?descripcion ?municipio ?capacidad
+  (GROUP_CONCAT(DISTINCT ?tipoLabel; separator=" | ") AS ?tipos)
+  (COUNT(DISTINCT ?paquete) AS ?popularidad)
+WHERE {
+  BIND("${busqueda}" AS ?q)
+  BIND("${tipo}" AS ?tipoParam)
+  BIND("${municipio}" AS ?muniParam)
+
+  ?destino rdf:type ex:DestinoTuristico .
+
+  OPTIONAL { ?destino rdfs:label ?nombreRaw . }
+  BIND(COALESCE(?nombreRaw, STRAFTER(STR(?destino), "#")) AS ?nombre)
+
+  OPTIONAL { ?destino ex:descripcion ?descripcion . }
+
+  OPTIONAL {
+    ?destino ex:ubicadoEn ?muni .
+    OPTIONAL { ?muni rdfs:label ?muniLabel . }
+    BIND(COALESCE(?muniLabel, STRAFTER(STR(?muni), "#")) AS ?municipio)
+  }
+
+  OPTIONAL { ?destino ex:capacidadCargaDiaria ?capacidad . }
+
+  OPTIONAL {
+    ?destino rdf:type ?tipo .
+    FILTER(?tipo != ex:DestinoTuristico)
+    OPTIONAL { ?tipo rdfs:label ?tipoLabelRaw . }
+    BIND(COALESCE(?tipoLabelRaw, STRAFTER(STR(?tipo), "#")) AS ?tipoLabel)
+  }
+
+  OPTIONAL {
+    ?paquete rdf:type ex:PaqueteTuristico ;
+             ex:visitaDestino ?destino .
+  }
+
+  FILTER(
+    ?q = "" ||
+    CONTAINS(LCASE(STR(?nombre)), LCASE(?q)) ||
+    CONTAINS(LCASE(STR(COALESCE(?descripcion, ""))), LCASE(?q)) ||
+    CONTAINS(LCASE(STR(COALESCE(?municipio, ""))), LCASE(?q))
+  )
+
+  FILTER(
+    ?tipoParam = "" ||
+    EXISTS {
+      ?destino rdf:type ?tipoFilter .
+      FILTER(?tipoFilter != ex:DestinoTuristico)
+      OPTIONAL { ?tipoFilter rdfs:label ?tipoFilterLabel . }
+      BIND(COALESCE(?tipoFilterLabel, STRAFTER(STR(?tipoFilter), "#")) AS ?tipoFilterName)
+      FILTER(
+        LCASE(STR(?tipoFilterName)) = LCASE(?tipoParam) ||
+        STR(?tipoFilter) = ?tipoParam
+      )
+    }
+  )
+
+  FILTER(
+    ?muniParam = "" ||
+    EXISTS {
+      ?destino ex:ubicadoEn ?muniFilter .
+      OPTIONAL { ?muniFilter rdfs:label ?muniFilterLabel . }
+      BIND(COALESCE(?muniFilterLabel, STRAFTER(STR(?muniFilter), "#")) AS ?muniFilterName)
+      FILTER(
+        LCASE(STR(?muniFilterName)) = LCASE(?muniParam) ||
+        STR(?muniFilter) = ?muniParam
+      )
+    }
+  )
+
+  FILTER(
+    ${cap_min} <= COALESCE(?capacidad, ${cap_min}) &&
+    COALESCE(?capacidad, ${cap_max}) <= ${cap_max}
+  )
+}
+GROUP BY ?destino ?nombre ?descripcion ?municipio ?capacidad
+ORDER BY ${orden}
+LIMIT 50
+OFFSET 0

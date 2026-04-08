@@ -1,0 +1,28 @@
+﻿# queries/paquete_detalle_servicios.sparql
+PREFIX ex: <http://amaturis.org/ontology#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?servicioNombre ?tipoLabel
+WHERE {
+  BIND(
+    IF(
+      STRSTARTS("${id}", "http"),
+      IRI("${id}"),
+      IRI(CONCAT("http://amaturis.org/ontology#", "${id}"))
+    ) AS ?paquete
+  )
+
+  ?paquete ex:incluyeServicio ?servicio .
+
+  OPTIONAL { ?servicio rdfs:label ?servicioLabel . }
+  OPTIONAL { ?servicio ex:nombre ?servicioNombreRaw . }
+  BIND(COALESCE(?servicioLabel, ?servicioNombreRaw, STRAFTER(STR(?servicio), "#")) AS ?servicioNombre)
+
+  OPTIONAL {
+    ?servicio rdf:type ?tipo .
+    FILTER(?tipo != ex:ServicioTuristico)
+    OPTIONAL { ?tipo rdfs:label ?tipoLabelRaw . }
+    BIND(COALESCE(?tipoLabelRaw, STRAFTER(STR(?tipo), "#")) AS ?tipoLabel)
+  }
+}
