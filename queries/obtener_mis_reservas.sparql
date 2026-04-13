@@ -3,17 +3,20 @@ PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 
 SELECT ?reserva ?paquete_id ?fecha ?personas ?estado ?precio_unitario ?comunidad_nombre ?total_pagar
 WHERE {
-  # Datos obligatorios de la reserva
+  # Buscamos la reserva y sus datos básicos
   ?reserva rdf:type ex:Reserva ;
-           ex:realizaReserva <${user_id}> ;
            ex:reservaPaquete ?paquete ;
            ex:fechaInicio ?fecha ;
            ex:numeroViajeros ?personas ;
            ex:tieneEstado ?estado .
   
+  # Filtramos por el usuario usando la propiedad que confirmamos en Fuseki
+  ?reserva ex:realizaReserva <${user_id}> .
+
+  # Extraemos el ID del paquete para el frontend
   BIND(STRAFTER(STR(?paquete), "#") AS ?paquete_id)
 
-  # Datos opcionales: si no existen, la reserva se muestra de todos modos
+  # Datos opcionales
   OPTIONAL {
     ?paquete ex:precioPersona ?precio_unitario .
     BIND(?precio_unitario * ?personas AS ?total_pagar)

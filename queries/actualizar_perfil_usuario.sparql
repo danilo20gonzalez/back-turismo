@@ -1,0 +1,15 @@
+PREFIX ex: <http://amaturis.org/ontology#>
+
+DELETE {
+  <${user_uri}> ex:tieneAvatar ?oldAvatar ;
+                ex:viveEn ?oldLocation .
+}
+INSERT {
+  <${user_uri}> ex:tieneAvatar "${newAvatar}" ;
+                ex:viveEn "${newLocation}" .
+}
+WHERE {
+  <${user_uri}> a ex:Turista .
+  OPTIONAL { <${user_uri}> ex:tieneAvatar ?oldAvatar }
+  OPTIONAL { <${user_uri}> ex:viveEn ?oldLocation }
+}

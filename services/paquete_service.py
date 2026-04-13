@@ -1,12 +1,6 @@
 # services/paquete_service.py
 from sparql_client import SparqlClient
-from models.paquete import Paquete
-from models.paquete_detalle import (
-    PaqueteDetalle,
-    PaqueteDetalleDestino,
-    PaqueteDetalleServicio,
-    PaqueteDetalleItinerario,
-)
+from schemas.paquete import Paquete
 
 client = SparqlClient()
 

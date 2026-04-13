@@ -1,11 +1,15 @@
 PREFIX ex: <http://amaturis.org/ontology#>
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 INSERT DATA {
-  ex:${user_id} rdf:type ex:Turista ;
-                ex:nombre "${nombre}" ;
-                ex:email "${email}" ;
-                ex:passwordHash "${password_hash}" ;
-                ex:fechaRegistro "${fecha_actual}"^^xsd:dateTime .
+  # Usamos una URI basada en el email o un ID único persistente
+  ex:user_${user_id} rdf:type ex:Usuario ;
+                     rdf:type ex:${rol_type} ; # Ejemplo: ex:Administrador
+                     ex:nombreCompleto "${nombre}" ;
+                     ex:email "${email}" ;
+                     ex:passwordHash "${password_hash}" ;
+                     ex:estado "activo" ;
+                     ex:fechaRegistro "${fecha_actual}"^^xsd:dateTime .
 }

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from models.reserva import ReservaCreate
+from schemas.reserva import ReservaCreate
 from services.reserva_service import ReservaService
 from core.auth import get_current_user 
 

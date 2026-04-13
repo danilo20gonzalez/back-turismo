@@ -1,0 +1,7 @@
+PREFIX ama: <http://amaturis.org/ontology#>
+
+SELECT (COUNT(?reserva) AS ?total)
+WHERE {
+  ?reserva a ama:Reserva ;
+           ama:realizaReserva ama:${user_id} .
+}

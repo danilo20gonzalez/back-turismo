@@ -1,6 +1,6 @@
 from sparql_client import SparqlClient
 import uuid
-from models.reserva import ReservaCreate
+from schemas.reserva import ReservaCreate
 from datetime import date
 from fastapi import HTTPException
 
