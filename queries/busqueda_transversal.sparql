@@ -1,0 +1,100 @@
+# queries/busqueda_transversal.sparql
+PREFIX ex: <http://amaturis.org/ontology#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?sujeto ?tipo ?nombre ?descripcion ?etiquetas ?precio ?duracion ?capacidad ?destinos ?municipios ?categorias
+WHERE {
+  BIND("${busqueda}" AS ?q)
+
+  # Buscar en diferentes tipos de entidades
+  {
+    ?sujeto rdf:type ex:PaqueteTuristico .
+    BIND("Paquete" AS ?tipo)
+    ?sujeto ex:nombre ?nombre .
+    OPTIONAL { ?sujeto ex:descripcion ?descripcion . }
+    OPTIONAL { ?sujeto ex:etiquetas ?etiquetas . }
+    OPTIONAL { ?sujeto ex:tienePrecio ?precioSpec . ?precioSpec ex:precioPorPersona ?precio . }
+    OPTIONAL { ?sujeto ex:duracionDias ?duracion . }
+    OPTIONAL { ?sujeto ex:capacidadMaxPersonas ?capacidad . }
+    OPTIONAL {
+      ?sujeto ex:visitaDestino ?destino .
+      OPTIONAL { ?destino rdfs:label ?destinoLabel . }
+      BIND(GROUP_CONCAT(DISTINCT ?destinoLabel; separator=" | ") AS ?destinos)
+    }
+    OPTIONAL {
+      ?sujeto ex:visitaDestino ?destino .
+      ?destino ex:ubicadoEn ?municipio .
+      OPTIONAL { ?municipio rdfs:label ?municipioLabel . }
+      BIND(GROUP_CONCAT(DISTINCT ?municipioLabel; separator=" | ") AS ?municipios)
+    }
+    OPTIONAL {
+      ?sujeto ex:visitaDestino ?destino .
+      ?destino rdf:type ?categoria .
+      FILTER(?categoria != ex:DestinoTuristico)
+      OPTIONAL { ?categoria rdfs:label ?categoriaLabel . }
+      BIND(GROUP_CONCAT(DISTINCT ?categoriaLabel; separator=" | ") AS ?categorias)
+    }
+  }
+  UNION
+  {
+    ?sujeto rdf:type ex:DestinoTuristico .
+    BIND("Destino" AS ?tipo)
+    ?sujeto ex:nombre ?nombre .
+    OPTIONAL { ?sujeto ex:descripcion ?descripcion . }
+    OPTIONAL { ?sujeto ex:etiquetas ?etiquetas . }
+    OPTIONAL {
+      ?sujeto ex:ubicadoEn ?municipio .
+      OPTIONAL { ?municipio rdfs:label ?municipioLabel . }
+      BIND(GROUP_CONCAT(DISTINCT ?municipioLabel; separator=" | ") AS ?municipios)
+    }
+    OPTIONAL {
+      ?sujeto rdf:type ?categoria .
+      FILTER(?categoria != ex:DestinoTuristico)
+      OPTIONAL { ?categoria rdfs:label ?categoriaLabel . }
+      BIND(GROUP_CONCAT(DISTINCT ?categoriaLabel; separator=" | ") AS ?categorias)
+    }
+  }
+  UNION
+  {
+    ?sujeto rdf:type ex:SitioTuristico .
+    BIND("Sitio" AS ?tipo)
+    ?sujeto ex:nombre ?nombre .
+    OPTIONAL { ?sujeto ex:descripcion ?descripcion . }
+    OPTIONAL { ?sujeto ex:etiquetas ?etiquetas . }
+    OPTIONAL {
+      ?sujeto ex:ubicadoEn ?destino .
+      OPTIONAL { ?destino rdfs:label ?destinoLabel . }
+      BIND(GROUP_CONCAT(DISTINCT ?destinoLabel; separator=" | ") AS ?destinos)
+    }
+    OPTIONAL {
+      ?sujeto ex:ubicadoEn ?destino .
+      ?destino ex:ubicadoEn ?municipio .
+      OPTIONAL { ?municipio rdfs:label ?municipioLabel . }
+      BIND(GROUP_CONCAT(DISTINCT ?municipioLabel; separator=" | ") AS ?municipios)
+    }
+  }
+  UNION
+  {
+    ?sujeto rdf:type ex:Servicio .
+    BIND("Servicio" AS ?tipo)
+    ?sujeto ex:nombre ?nombre .
+    OPTIONAL { ?sujeto ex:descripcion ?descripcion . }
+    OPTIONAL { ?sujeto ex:etiquetas ?etiquetas . }
+    OPTIONAL { ?sujeto ex:tienePrecio ?precioSpec . ?precioSpec ex:precioPorPersona ?precio . }
+    OPTIONAL {
+      ?sujeto ex:ubicadoEn ?destino .
+      OPTIONAL { ?destino rdfs:label ?destinoLabel . }
+      BIND(GROUP_CONCAT(DISTINCT ?destinoLabel; separator=" | ") AS ?destinos)
+    }
+  }
+
+  # Filtro: el mensaje debe aparecer en nombre, descripcion o etiquetas
+  FILTER(
+    CONTAINS(LCASE(?nombre), LCASE(?q)) ||
+    CONTAINS(LCASE(?descripcion), LCASE(?q)) ||
+    CONTAINS(LCASE(?etiquetas), LCASE(?q))
+  )
+}
+GROUP BY ?sujeto ?tipo ?nombre ?descripcion ?etiquetas ?precio ?duracion ?capacidad ?destinos ?municipios ?categorias
+LIMIT 10

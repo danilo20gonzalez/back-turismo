@@ -7,6 +7,7 @@ from routers import paquetes  # Importamos el router que crearemos
 from routers import sitios
 from routers import usuarios
 from routers import reservas
+from routers import chat
 
 app = FastAPI(
     title="AmaTuris API",
@@ -18,7 +19,7 @@ app = FastAPI(
 # Esto es vital para que tu frontend en React pueda hacer peticiones al backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # En producción cambia esto a la URL de tu frontend
+    allow_origins=["*"],  # En producción cambia esto a la URL de tu frontend
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,6 +31,7 @@ app.include_router(paquetes.router)
 app.include_router(sitios.router)
 app.include_router(usuarios.router)
 app.include_router(reservas.router)
+app.include_router(chat.router, prefix="/api/v1", tags=["Chat"])  # Prefijo para las rutas de chat
 
 @app.get("/")
 async def root():
