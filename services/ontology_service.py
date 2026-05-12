@@ -26,16 +26,18 @@ async def obtener_contexto_desde_fuseki(mensaje_usuario: str):
         sitios = [r for r in resultados if r.get('tipo', {}).get('value') == 'Sitio']
         servicios = [r for r in resultados if r.get('tipo', {}).get('value') == 'Servicio']
 
-        # Narrar paquetes
+
         if paquetes:
-            contexto += "Encontramos los siguientes paquetes turísticos: "
-            for p in paquetes[:3]:  # Limitar a 3 para no sobrecargar
-                nombre = p.get('nombre', {}).get('value', 'Sin nombre')
-                descripcion = p.get('descripcion', {}).get('value', '')
-                precio = p.get('precio', {}).get('value', 'Consultar')
-                destinos_p = p.get('destinos', {}).get('value', '')
-                contexto += f"El paquete '{nombre}' con descripción '{descripcion}', precio aproximado {precio} por persona, visitando destinos como {destinos_p}. "
-            contexto += " "
+            contexto += "Los paquetes oficiales disponibles en AmaTuris son: "
+            for p in paquetes[:3]:
+                nombre = p.get('nombre', {}).get('value')
+                precio = p.get('precio', {}).get('value')
+                moneda = p.get('moneda', {}).get('value', 'COP')
+                capacidad = p.get('capacidad', {}).get('value')
+                duracion = p.get('duracion', {}).get('value')
+                
+                # Construimos una frase con DATOS DUROS
+                contexto += f"- {nombre}: Cuesta {precio} {moneda}, dura {duracion} días y tiene capacidad para {capacidad} personas. "
 
         # Narrar destinos
         if destinos:
