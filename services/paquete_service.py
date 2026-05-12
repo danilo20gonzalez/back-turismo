@@ -1,5 +1,12 @@
 # services/paquete_service.py
 from sparql_client import SparqlClient
+from sparql_queries import paquetes as paquete_queries
+from models.paquete_detalle import (
+    PaqueteDetalle,
+    PaqueteDetalleDestino,
+    PaqueteDetalleItinerario,
+    PaqueteDetalleServicio,
+)
 from schemas.paquete import Paquete
 
 client = SparqlClient()
@@ -7,18 +14,8 @@ client = SparqlClient()
 class PaqueteService:
     @staticmethod
     def buscar_paquetes(busqueda: str, max_precio: int, limit: int, offset: int):
-        # Normalizamos parametros para evitar limites extremos
-        busqueda = busqueda or ""
-        limit = max(1, min(limit, 100))
-        offset = max(0, offset)
-
-        params = {
-            "busqueda": busqueda,
-            "max_precio": max_precio,
-            "limit": limit,
-            "offset": offset,
-        }
-        raw_results = client.execute_query("paquetes", params)
+        query = paquete_queries.list_packages(busqueda, max_precio, limit, offset)
+        raw_results = client.execute_select(query)
         
         paquetes = []
         for res in raw_results:
@@ -50,8 +47,7 @@ class PaqueteService:
 
     @staticmethod
     def obtener_detalle(paquete_id: str):
-        params = {"id": paquete_id}
-        base_results = client.execute_query("paquete_detalle_base", params)
+        base_results = client.execute_select(paquete_queries.detail_base(paquete_id))
         if not base_results:
             return None
 
@@ -72,7 +68,7 @@ class PaqueteService:
             no_incluye=get_value(base, "noIncluye"),
         )
 
-        destinos_results = client.execute_query("paquete_detalle_destinos", params)
+        destinos_results = client.execute_select(paquete_queries.detail_destinations(paquete_id))
         destinos = []
         destinos_seen = set()
         for res in destinos_results:
@@ -99,7 +95,7 @@ class PaqueteService:
                 )
             )
 
-        servicios_results = client.execute_query("paquete_detalle_servicios", params)
+        servicios_results = client.execute_select(paquete_queries.detail_services(paquete_id))
         servicios = []
         servicios_seen = set()
         for res in servicios_results:
@@ -118,7 +114,7 @@ class PaqueteService:
                 )
             )
 
-        itinerarios_results = client.execute_query("paquete_detalle_itinerarios", params)
+        itinerarios_results = client.execute_select(paquete_queries.detail_itineraries(paquete_id))
         itinerarios = []
         itinerarios_seen = set()
         for res in itinerarios_results:

@@ -5,6 +5,8 @@ from core.database import get_db
 from core.auth import get_current_user
 from schemas.usuario import UsuarioRegistro, UsuarioLogin, ProfileResponse, ProfileUpdate, UserResponse
 from services.usuario_service import UsuarioService
+from sparql_queries import reservas as reserva_queries
+from sparql_queries import usuarios as usuario_queries
 from datetime import datetime
 
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
@@ -44,10 +46,8 @@ def obtener_mi_perfil(db: Session = Depends(get_db), current_user = Depends(get_
     """
     Retorna los datos extendidos del perfil extrayendo conocimiento de Fuseki.
     """
-    # 1. Identificadores para Fuseki
-    # Usamos user_uri_id para el conteo y user_uri_completa para la consulta detallada
-    user_uri_id = f"{current_user.rol.nombre}_{current_user.id}"
-    user_uri_completa = f"http://amaturis.org/ontology#{user_uri_id}"
+    # 1. Identificador semantico para Fuseki
+    user_uri_completa = usuario_queries.resolve_user_uri(current_user)
     ahora = datetime.now()
 
     # Inicializamos variables
@@ -57,7 +57,7 @@ def obtener_mi_perfil(db: Session = Depends(get_db), current_user = Depends(get_
     
     # 2. Consultar estadísticas reales (Conteo)
     try:
-        resultados_stats = client.execute_query("obtener_estadisticas_usuario", {"user_id": user_uri_id})
+        resultados_stats = client.execute_select(reserva_queries.user_stats(user_uri_completa))
         if resultados_stats and "total" in resultados_stats[0]:
             total_reservas = int(resultados_stats[0]["total"]["value"])
     except Exception as e:
@@ -75,7 +75,7 @@ def obtener_mi_perfil(db: Session = Depends(get_db), current_user = Depends(get_
 
     # 4. Obtener y clasificar lista de reservas (Activas vs Historial)
     try:
-        res_detalles = client.execute_query("obtener_mis_reservas", {"user_id": user_uri_completa})
+        res_detalles = client.execute_select(reserva_queries.user_reservations(user_uri_completa))
         
         for r in res_detalles:
 

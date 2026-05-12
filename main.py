@@ -1,4 +1,12 @@
 # main.py
+import warnings
+
+warnings.filterwarnings(
+    "ignore",
+    message="Please use `import python_multipart` instead.",
+    category=PendingDeprecationWarning,
+)
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,6 +39,7 @@ app.include_router(paquetes.router)
 app.include_router(sitios.router)
 app.include_router(usuarios.router)
 app.include_router(reservas.router)
+app.include_router(chat.router, tags=["Chat"])
 app.include_router(chat.router, prefix="/api/v1", tags=["Chat"])  # Prefijo para las rutas de chat
 
 @app.get("/")

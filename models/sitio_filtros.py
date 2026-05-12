@@ -1,5 +1,5 @@
 # models/sitio_filtros.py
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 
 
@@ -15,10 +15,9 @@ class SitioMunicipio(BaseModel):
 
 
 class SitioFiltros(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     tipos: List[SitioTipo]
     municipios: List[SitioMunicipio]
     capacidad_min: Optional[int] = None
     capacidad_max: Optional[int] = None
-
-    class Config:
-        from_attributes = True

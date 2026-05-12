@@ -1,9 +1,11 @@
 # models/sitio_detalle.py
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
 
 class SitioDetalle(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     nombre: str
     descripcion: Optional[str] = None
@@ -12,6 +14,3 @@ class SitioDetalle(BaseModel):
     latitud: Optional[float] = None
     longitud: Optional[float] = None
     tipos: Optional[str] = None
-
-    class Config:
-        from_attributes = True

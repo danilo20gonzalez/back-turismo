@@ -1,5 +1,5 @@
 ﻿# models/paquete_detalle.py
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 
 class PaqueteDetalleDestino(BaseModel):
@@ -18,6 +18,8 @@ class PaqueteDetalleItinerario(BaseModel):
     descripcion: Optional[str] = None
 
 class PaqueteDetalle(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     nombre: str
     descripcion: str
@@ -30,6 +32,3 @@ class PaqueteDetalle(BaseModel):
     destinos: Optional[List[PaqueteDetalleDestino]] = None
     servicios: Optional[List[PaqueteDetalleServicio]] = None
     itinerarios: Optional[List[PaqueteDetalleItinerario]] = None
-
-    class Config:
-        from_attributes = True
