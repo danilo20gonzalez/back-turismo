@@ -144,11 +144,10 @@ WHERE {{
   BIND(?precio_unitario * ?personas AS ?total_pagar)
 
   OPTIONAL {{
-    ?paquete ex:ofrecidoPor ?comunidad .
-    OPTIONAL {{ ?comunidad rdfs:label ?comunidadLabel . }}
-    OPTIONAL {{ ?comunidad ex:nombre ?comunidadNombre . }}
-    OPTIONAL {{ ?comunidad ex:nombreComunidad ?comunidadNombreLegacy . }}
-    BIND(COALESCE(?comunidadLabel, ?comunidadNombre, ?comunidadNombreLegacy) AS ?comunidad_nombre)
+    ?owner ex:armaPaqueteModificado ?paquete .
+    OPTIONAL {{ ?owner rdfs:label ?ownerLabel . }}
+    OPTIONAL {{ ?owner ex:nombre ?ownerName . }}
+    BIND(COALESCE(?ownerLabel, ?ownerName, STRAFTER(STR(?owner), "#")) AS ?comunidad_nombre)
   }}
 }}
 ORDER BY DESC(?fecha)
@@ -241,11 +240,10 @@ WHERE {{
   BIND(?precio_unitario * ?personas AS ?total_pagar)
 
   OPTIONAL {{
-    ?paquete ex:ofrecidoPor ?comunidad .
-    OPTIONAL {{ ?comunidad rdfs:label ?comunidadLabel . }}
-    OPTIONAL {{ ?comunidad ex:nombre ?comunidadNombre . }}
-    OPTIONAL {{ ?comunidad ex:nombreComunidad ?comunidadNombreLegacy . }}
-    BIND(COALESCE(?comunidadLabel, ?comunidadNombre, ?comunidadNombreLegacy) AS ?comunidad_nombre)
+    ?owner ex:armaPaqueteModificado ?paquete .
+    OPTIONAL {{ ?owner rdfs:label ?ownerLabel . }}
+    OPTIONAL {{ ?owner ex:nombre ?ownerName . }}
+    BIND(COALESCE(?ownerLabel, ?ownerName, STRAFTER(STR(?owner), "#")) AS ?comunidad_nombre)
   }}
 }}
 LIMIT 1
@@ -281,16 +279,23 @@ WHERE {{
 """
 
 
-def operator_reservations() -> str:
+def operator_reservations(owner_uri: str | None = None) -> str:
+    owner_clause = ""
+    if owner_uri:
+        owner_clause = f"VALUES ?owner {{ {resource(owner_uri)} }}"
+
     return f"""{PREFIXES}
 SELECT ?reserva ?paquete ?paquete_id ?paquete_nombre ?paquete_imagen ?fecha ?fecha_reserva
        ?personas ?estado ?precio_unitario ?total_pagar ?comunidad_nombre
        ?turista_nombre ?turista_email
 WHERE {{
+  {owner_clause}
   ?reserva rdf:type/rdfs:subClassOf* ex:Reserva ;
            ex:reservaPaquete ?paquete ;
            ex:fechaInicio ?fecha ;
            ex:numeroViajeros ?personas .
+
+  ?owner ex:armaPaqueteModificado ?paquete .
 
   BIND(STRAFTER(STR(?paquete), "#") AS ?paquete_id)
 
@@ -317,13 +322,9 @@ WHERE {{
   BIND(COALESCE(?precio_from_spec, ?precio_legacy, 0) AS ?precio_unitario)
   BIND(?precio_unitario * ?personas AS ?total_pagar)
 
-  OPTIONAL {{
-    ?paquete ex:ofrecidoPor ?comunidad .
-    OPTIONAL {{ ?comunidad rdfs:label ?comunidadLabel . }}
-    OPTIONAL {{ ?comunidad ex:nombre ?comunidadNombre . }}
-    OPTIONAL {{ ?comunidad ex:nombreComunidad ?comunidadNombreLegacy . }}
-    BIND(COALESCE(?comunidadLabel, ?comunidadNombre, ?comunidadNombreLegacy) AS ?comunidad_nombre)
-  }}
+  OPTIONAL {{ ?owner rdfs:label ?ownerLabel . }}
+  OPTIONAL {{ ?owner ex:nombre ?ownerName . }}
+  BIND(COALESCE(?ownerLabel, ?ownerName, STRAFTER(STR(?owner), "#")) AS ?comunidad_nombre)
 
   OPTIONAL {{
     {{
@@ -350,6 +351,23 @@ SELECT ?reserva
 WHERE {{
   VALUES ?reserva {{ {reserva} }}
   ?reserva rdf:type/rdfs:subClassOf* ex:Reserva .
+}}
+LIMIT 1
+"""
+
+
+def reservation_owned_by(reserva_id: str, owner_uri: str) -> str:
+    reserva = local_resource(reserva_id)
+    owner = resource(owner_uri)
+    return f"""{PREFIXES}
+SELECT ?reserva
+WHERE {{
+  VALUES ?reserva {{ {reserva} }}
+  VALUES ?owner {{ {owner} }}
+
+  ?reserva rdf:type/rdfs:subClassOf* ex:Reserva ;
+           ex:reservaPaquete ?paquete .
+  ?owner ex:armaPaqueteModificado ?paquete .
 }}
 LIMIT 1
 """

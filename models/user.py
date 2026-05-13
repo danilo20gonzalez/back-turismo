@@ -24,5 +24,6 @@ class Usuario(Base):
     activo = Column(Boolean, default=True)
     fecha_registro = Column(TIMESTAMP, default=datetime.utcnow)
     uri_ontologia = Column(String(255), nullable=True)
+    agencia_uri = Column(String(255), nullable=True)
     # Relación para acceder al nombre del rol fácilmente
     rol = relationship("Role", back_populates="usuarios")

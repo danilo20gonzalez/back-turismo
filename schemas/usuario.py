@@ -7,6 +7,7 @@ class UsuarioRegistro(BaseModel):
     email: EmailStr
     password: str
     rol_id: int
+    agencia_uri: Optional[str] = None
 
 # Para la respuesta estándar de usuario (Post-Update o Auth)
 class UserResponse(BaseModel):
@@ -15,6 +16,7 @@ class UserResponse(BaseModel):
     nombre_completo: str
     email: EmailStr
     uri_ontologia: Optional[str] = None
+    agencia_uri: Optional[str] = None
 
 class UsuarioLogin(BaseModel):
     email: EmailStr

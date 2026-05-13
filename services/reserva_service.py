@@ -3,6 +3,7 @@ from datetime import datetime, date
 
 from fastapi import HTTPException
 
+from core.roles import is_admin, is_operator_or_admin
 from schemas.reserva import ReservaCreate
 from sparql_builder import EX, resource_uri
 from sparql_client import SparqlClient
@@ -28,9 +29,22 @@ class ReservaService:
 
     @staticmethod
     def _assert_operator_or_admin(user):
-        role_name = (getattr(getattr(user, "rol", None), "nombre", "") or "").strip().lower()
-        if role_name not in {"operador", "admin"}:
+        role_name = getattr(getattr(user, "rol", None), "nombre", None)
+        if not is_operator_or_admin(role_name):
             raise HTTPException(status_code=403, detail="No autorizado para gestion operativa de reservas")
+
+    @staticmethod
+    def _assert_admin(user):
+        role_name = getattr(getattr(user, "rol", None), "nombre", None)
+        if not is_admin(role_name):
+            raise HTTPException(status_code=403, detail="No autorizado para administracion global de reservas")
+
+    @staticmethod
+    def _resolve_operator_owner_uri(user) -> str | None:
+        # Regla estricta: operador solo trabaja con la agencia vinculada en BD.
+        # Evita resolver por email/uri para no mezclar reservas entre agencias.
+        explicit_owner = (getattr(user, "agencia_uri", None) or "").strip()
+        return explicit_owner or None
 
     @staticmethod
     def _user_uri(user_or_uri) -> str:
@@ -129,7 +143,7 @@ class ReservaService:
 
         mis_reservas = []
         for row in results:
-            comunidad = row.get("comunidad_nombre", {}).get("value", "Comunidad por asignar")
+            comunidad = row.get("comunidad_nombre", {}).get("value", "Agencia por asignar")
             precio_t = row.get("total_pagar", {}).get("value", 0.0)
 
             mis_reservas.append(
@@ -171,7 +185,7 @@ class ReservaService:
                     pass
 
             personas = int(row.get("personas", {}).get("value", 1))
-            comunidad = row.get("comunidad_nombre", {}).get("value", "Amaturis")
+            comunidad = row.get("comunidad_nombre", {}).get("value", "Agencia por asignar")
             paquete_local_id = row.get("paquete_id", {}).get("value", "")
             precio_total = float(row.get("total_pagar", {}).get("value", 0) or 0)
             precio_formateado = "${:,.0f} COP".format(precio_total).replace(",", ".")
@@ -197,6 +211,12 @@ class ReservaService:
                         "value": f"{personas} Persona{'s' if personas != 1 else ''}",
                         "icon": "group",
                         "tone": "primary" if status == "confirmada" else "tertiary",
+                    },
+                    {
+                        "label": "Agencia",
+                        "value": comunidad,
+                        "icon": "storefront",
+                        "tone": "secondary",
                     },
                 ],
                 "totalLabel": "Total",
@@ -263,7 +283,8 @@ class ReservaService:
             f"{lat},{lon}" if lat and lon else location_label.replace(" ", "%20").replace(",", "%2C")
         )
         itinerary = ReservaService._build_itinerary(row["paquete"]["value"])
-        attraction_name = destino_nombre or row.get("comunidad_nombre", {}).get("value", "Destino turistico")
+        agencia_nombre = row.get("comunidad_nombre", {}).get("value", "Agencia por asignar")
+        attraction_name = destino_nombre or agencia_nombre
 
         return {
             "id": reserva_id,
@@ -300,7 +321,7 @@ class ReservaService:
                 ),
             },
             "provider": {
-                "name": row.get("comunidad_nombre", {}).get("value", "Operador local"),
+                "name": agencia_nombre,
                 "phone": "+57 300 000 0000",
                 "email": "contacto@amaturis.com",
             },
@@ -330,16 +351,28 @@ class ReservaService:
         paquete: str | None = None,
     ):
         ReservaService._assert_operator_or_admin(user)
+        role_name = getattr(getattr(user, "rol", None), "nombre", None)
+        owner_uri = None
+        if not is_admin(role_name):
+            owner_uri = ReservaService._resolve_operator_owner_uri(user)
+            if not owner_uri:
+                raise HTTPException(
+                    status_code=400,
+                    detail="El usuario operador no tiene agencia/prestador vinculado en ontologia",
+                )
 
-        results = client.execute_select(reserva_queries.operator_reservations())
+        results = client.execute_select(reserva_queries.operator_reservations(owner_uri=owner_uri))
         estado_filtro = (estado or "").strip().lower()
         paquete_filtro = (paquete or "").strip().lower()
         normalized = []
+        seen_reservations: set[str] = set()
 
         for row in results:
             reserva_id = row.get("reserva", {}).get("value", "").split("#")[-1]
             fecha_raw = row.get("fecha", {}).get("value", "")
             if not reserva_id or not fecha_raw:
+                continue
+            if reserva_id in seen_reservations:
                 continue
 
             fecha_iso = fecha_raw.split("T")[0]
@@ -369,7 +402,7 @@ class ReservaService:
             precio_unitario = float(row.get("precio_unitario", {}).get("value", 0) or 0)
             turista_nombre = row.get("turista_nombre", {}).get("value", "").strip() or "Viajero"
             turista_email = row.get("turista_email", {}).get("value", "").strip() or "Sin correo"
-            comunidad = row.get("comunidad_nombre", {}).get("value", "").strip() or "Operador local"
+            comunidad = row.get("comunidad_nombre", {}).get("value", "").strip() or "Agencia por asignar"
             imagen = row.get("paquete_imagen", {}).get("value", "").strip()
 
             normalized.append(
@@ -396,24 +429,121 @@ class ReservaService:
                     "fecha_reserva": row.get("fecha_reserva", {}).get("value", ""),
                 }
             )
+            seen_reservations.add(reserva_id)
 
         return normalized
 
     @staticmethod
     def actualizar_estado_operador(user, reserva_id: str, estado: str):
         ReservaService._assert_operator_or_admin(user)
+        role_name = getattr(getattr(user, "rol", None), "nombre", None)
         estado_key = (estado or "").strip().lower()
         permitidos = {"confirmada", "pendiente", "cancelada", "completada"}
         if estado_key not in permitidos:
             raise HTTPException(status_code=400, detail="Estado no permitido para operador")
 
-        existe = client.execute_select(reserva_queries.reservation_exists(reserva_id))
-        if not existe:
+        exists = client.execute_select(reserva_queries.reservation_exists(reserva_id))
+        if not exists:
             raise HTTPException(status_code=404, detail="Reserva no encontrada")
+
+        if not is_admin(role_name):
+            owner_uri = ReservaService._resolve_operator_owner_uri(user)
+            if not owner_uri:
+                raise HTTPException(
+                    status_code=400,
+                    detail="El usuario operador no tiene agencia/prestador vinculado en ontologia",
+                )
+            owned = client.execute_select(reserva_queries.reservation_owned_by(reserva_id, owner_uri))
+            if not owned:
+                raise HTTPException(
+                    status_code=403,
+                    detail="No autorizado para modificar reservas fuera de tu agencia/prestador",
+                )
 
         client.execute_sparql_update(reserva_queries.set_reservation_state(reserva_id, estado_key))
         return {
             "message": "Estado actualizado",
             "reserva_id": reserva_id,
             "estado": estado_key,
+        }
+
+    @staticmethod
+    def obtener_admin_reservas(
+        user,
+        estado: str | None = None,
+        fecha_desde: date | None = None,
+        fecha_hasta: date | None = None,
+        q: str | None = None,
+    ):
+        ReservaService._assert_admin(user)
+        resultados = ReservaService.obtener_operador_reservas(
+            user,
+            estado=estado,
+            fecha_desde=fecha_desde,
+            fecha_hasta=fecha_hasta,
+            paquete=None,
+        )
+
+        query = (q or "").strip().lower()
+        if not query:
+            return sorted(resultados, key=lambda item: item.get("fecha", ""), reverse=True)
+
+        filtradas = []
+        for row in resultados:
+            searchable = " ".join(
+                [
+                    row.get("id", ""),
+                    row.get("estado", ""),
+                    row.get("estado_label", ""),
+                    row.get("paquete", {}).get("id", ""),
+                    row.get("paquete", {}).get("nombre", ""),
+                    row.get("turista", {}).get("nombre", ""),
+                    row.get("turista", {}).get("email", ""),
+                    row.get("proveedor", ""),
+                ]
+            ).lower()
+            if query in searchable:
+                filtradas.append(row)
+
+        return sorted(filtradas, key=lambda item: item.get("fecha", ""), reverse=True)
+
+    @staticmethod
+    def obtener_admin_kpis_reservas(
+        user,
+        estado: str | None = None,
+        fecha_desde: date | None = None,
+        fecha_hasta: date | None = None,
+        q: str | None = None,
+    ):
+        ReservaService._assert_admin(user)
+        reservas = ReservaService.obtener_admin_reservas(
+            user,
+            estado=estado,
+            fecha_desde=fecha_desde,
+            fecha_hasta=fecha_hasta,
+            q=q,
+        )
+
+        total = len(reservas)
+        confirmadas = sum(1 for item in reservas if item.get("estado") == "confirmada")
+        canceladas = sum(1 for item in reservas if item.get("estado") == "cancelada")
+        ingresos_estimados = sum(
+            float(item.get("total", 0) or 0)
+            for item in reservas
+            if item.get("estado") in {"pendiente", "confirmada", "completada"}
+        )
+        ingresos_confirmados = sum(
+            float(item.get("total", 0) or 0)
+            for item in reservas
+            if item.get("estado") in {"confirmada", "completada"}
+        )
+
+        return {
+            "total_reservas": total,
+            "confirmadas": confirmadas,
+            "canceladas": canceladas,
+            "ingresos_estimados": ingresos_estimados,
+            "ingresos_estimados_label": "${:,.0f} COP".format(ingresos_estimados).replace(",", "."),
+            "ingresos_confirmados": ingresos_confirmados,
+            "ingresos_confirmados_label": "${:,.0f} COP".format(ingresos_confirmados).replace(",", "."),
         }

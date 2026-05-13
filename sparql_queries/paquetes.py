@@ -143,7 +143,7 @@ OFFSET {safe_offset}
 def detail_base(paquete_id: str) -> str:
     paquete = resource(paquete_id)
     return f"""{PREFIXES}
-SELECT ?paquete ?nombre ?descripcion ?precio ?duracion ?dificultad ?capacidad ?incluye ?noIncluye ?imagen ?galeria
+SELECT ?paquete ?nombre ?descripcion ?precio ?duracion ?dificultad ?capacidad ?incluye ?noIncluye ?agencia ?agenciaNombre ?imagen ?galeria
 WHERE {{
   VALUES ?paquete {{ {paquete} }}
 
@@ -159,6 +159,12 @@ WHERE {{
   OPTIONAL {{ ?paquete ex:noIncluye ?noIncluye . }}
   OPTIONAL {{ ?paquete ex:urlImagen ?imagen . }}
   OPTIONAL {{ ?paquete ex:galeriaImagenes ?galeria . }}
+  OPTIONAL {{
+    ?agencia ex:armaPaqueteModificado ?paquete .
+    OPTIONAL {{ ?agencia rdfs:label ?agenciaLabel . }}
+    OPTIONAL {{ ?agencia ex:nombre ?agenciaName . }}
+    BIND(COALESCE(?agenciaLabel, ?agenciaName, STRAFTER(STR(?agencia), "#")) AS ?agenciaNombre)
+  }}
 
   OPTIONAL {{
     ?paquete ex:tieneDificultad ?dif .

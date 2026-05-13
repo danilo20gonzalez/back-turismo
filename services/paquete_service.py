@@ -85,6 +85,8 @@ class PaqueteService:
             capacidad_max_personas=int(get_value(base, "capacidad")) if get_value(base, "capacidad") else None,
             incluye_descripcion=get_value(base, "incluye"),
             no_incluye=get_value(base, "noIncluye"),
+            agencia_uri=get_value(base, "agencia"),
+            agencia_nombre=get_value(base, "agenciaNombre"),
             url_imagen=get_value(base, "imagen"),
             galeria_imagenes=get_value(base, "galeria"),
         )

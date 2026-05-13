@@ -16,12 +16,14 @@ from sparql_builder import (
 
 ROLE_MAP = {
     "turista": ("Turista", "rol-turista", "RolTurista", "Turista"),
+    "operador": ("AgenciaViajes", "rol-prestador", "RolPrestador", "Prestador de servicio"),
     "prestador": ("PrestadorServicio", "rol-prestador", "RolPrestador", "Prestador"),
     "prestador servicio": ("PrestadorServicio", "rol-prestador", "RolPrestador", "Prestador"),
+    "prestador de servicio": ("PrestadorServicio", "rol-prestador", "RolPrestador", "Prestador"),
     "prestador de servicios": ("PrestadorServicio", "rol-prestador", "RolPrestador", "Prestador"),
-    "agencia": ("AgenciaViajes", "rol-comunidad", "RolComunidad", "Agencia de viajes"),
-    "agencia de viajes": ("AgenciaViajes", "rol-comunidad", "RolComunidad", "Agencia de viajes"),
-    "comunidad": ("Usuario", "rol-comunidad", "RolComunidad", "Comunidad"),
+    "agencia": ("AgenciaViajes", "rol-prestador", "RolPrestador", "Agencia de viajes"),
+    "agencia de viajes": ("AgenciaViajes", "rol-prestador", "RolPrestador", "Agencia de viajes"),
+    "comunidad": ("Comunidad", "rol-comunidad", "RolComunidad", "Comunidad"),
     "admin": ("Usuario", "rol-admin-general", "RolAdminGeneral", "Administrador"),
     "administrador": ("Usuario", "rol-admin-general", "RolAdminGeneral", "Administrador"),
     "administrador general": ("Usuario", "rol-admin-general", "RolAdminGeneral", "Administrador"),
@@ -101,3 +103,28 @@ def resolve_user_uri(db_user) -> str:
         return existing
     role = getattr(getattr(db_user, "rol", None), "nombre", None)
     return f"{EX}{user_local_id(role, getattr(db_user, 'id'))}"
+
+
+def owner_uri_by_email(email: str) -> str:
+    return f"""{PREFIXES}
+SELECT ?owner
+WHERE {{
+  ?owner rdf:type ?ownerType ;
+         ex:email {literal(email)} .
+  FILTER(?ownerType IN (ex:AgenciaViajes, ex:PrestadorServicio))
+}}
+LIMIT 1
+"""
+
+
+def owner_uri_by_uri(user_uri_value: str) -> str:
+    user = resource(user_uri_value)
+    return f"""{PREFIXES}
+SELECT ?owner
+WHERE {{
+  VALUES ?owner {{ {user} }}
+  ?owner rdf:type ?ownerType .
+  FILTER(?ownerType IN (ex:AgenciaViajes, ex:PrestadorServicio))
+}}
+LIMIT 1
+"""

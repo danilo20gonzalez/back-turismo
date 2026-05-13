@@ -80,13 +80,13 @@ def obtener_mi_perfil(db: Session = Depends(get_db), current_user=Depends(get_cu
             estado_lower = estado_reserva.lower()
             reserva_id = r.get("reserva", {}).get("value", "").split("#")[-1]
             paquete_nombre = r.get("paquete_nombre", {}).get("value", "").strip()
-            comunidad = r.get("comunidad_nombre", {}).get("value", "Sitio Amazonico")
+            comunidad = r.get("comunidad_nombre", {}).get("value", "Agencia por asignar")
 
             reserva_item = {
                 "id": reserva_id,
                 "title": paquete_nombre if paquete_nombre else f"Reserva en {comunidad}",
                 "date": fecha_str,
-                "dateRange": f"{fecha_str} - Evento",
+                "dateRange": f"{fecha_str} - {comunidad}",
                 "status": "Confirmado" if "confirm" in estado_lower else "Pendiente de pago",
                 "price": f"${r.get('total_pagar', {}).get('value', '0')}",
                 "people": str(r.get("personas", {}).get("value", "1")),

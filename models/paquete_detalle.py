@@ -32,6 +32,8 @@ class PaqueteDetalle(BaseModel):
     capacidad_max_personas: Optional[int] = None
     incluye_descripcion: Optional[str] = None
     no_incluye: Optional[str] = None
+    agencia_uri: Optional[str] = None
+    agencia_nombre: Optional[str] = None
     url_imagen: Optional[str] = None
     galeria_imagenes: Optional[str] = None
     destinos: Optional[List[PaqueteDetalleDestino]] = None

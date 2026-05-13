@@ -1,5 +1,6 @@
 PREFIX ex: <http://amaturis.org/ontology#>
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?reserva ?paquete_id ?fecha ?personas ?estado ?precio_unitario ?comunidad_nombre ?total_pagar
 WHERE {
@@ -23,8 +24,10 @@ WHERE {
   }
   
   OPTIONAL {
-    ?paquete ex:ofrecidoPor ?comunidad .
-    ?comunidad ex:nombreComunidad ?comunidad_nombre .
+    ?owner ex:armaPaqueteModificado ?paquete .
+    OPTIONAL { ?owner rdfs:label ?ownerLabel . }
+    OPTIONAL { ?owner ex:nombre ?ownerName . }
+    BIND(COALESCE(?ownerLabel, ?ownerName, STRAFTER(STR(?owner), "#")) AS ?comunidad_nombre)
   }
 }
 ORDER BY DESC(?fecha)
