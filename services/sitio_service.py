@@ -24,6 +24,8 @@ class SitioService:
             municipios = res["municipios"]["value"] if "municipios" in res else None
             categorias = res["categorias"]["value"] if "categorias" in res else None
             capacidad = int(res["capacidad"]["value"]) if "capacidad" in res else None
+            imagen = res["imagen"]["value"] if "imagen" in res else None
+            galeria = res["galeria"]["value"] if "galeria" in res else None
 
             paquetes.append(
                 Paquete(
@@ -38,6 +40,8 @@ class SitioService:
                     municipios=municipios,
                     categorias=categorias,
                     capacidad_max_personas=capacidad,
+                    url_imagen=imagen,
+                    galeria_imagenes=galeria,
                 )
             )
         return paquetes
@@ -69,6 +73,8 @@ class SitioService:
             capacidad = int(res["capacidad"]["value"]) if "capacidad" in res else None
             popularidad = int(res["popularidad"]["value"]) if "popularidad" in res else None
             tipos = res["tipos"]["value"] if "tipos" in res else None
+            imagen = res["imagen"]["value"] if "imagen" in res else None
+            galeria = res["galeria"]["value"] if "galeria" in res else None
 
             sitios.append(
                 Sitio(
@@ -79,6 +85,8 @@ class SitioService:
                     capacidad_diaria=capacidad,
                     tipos=tipos,
                     popularidad=popularidad,
+                    url_imagen=imagen,
+                    galeria_imagenes=galeria,
                 )
             )
 
@@ -147,6 +155,8 @@ class SitioService:
             latitud=float(lat) if lat else None,
             longitud=float(lon) if lon else None,
             tipos=get_value("tipos"),
+            url_imagen=get_value("imagen"),
+            galeria_imagenes=get_value("galeria"),
         )
 
     @staticmethod

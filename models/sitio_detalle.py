@@ -14,3 +14,5 @@ class SitioDetalle(BaseModel):
     latitud: Optional[float] = None
     longitud: Optional[float] = None
     tipos: Optional[str] = None
+    url_imagen: Optional[str] = None
+    galeria_imagenes: Optional[str] = None

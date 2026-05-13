@@ -13,3 +13,5 @@ class Sitio(BaseModel):
     capacidad_diaria: Optional[int] = None
     tipos: Optional[str] = None
     popularidad: Optional[int] = None
+    url_imagen: Optional[str] = None
+    galeria_imagenes: Optional[str] = None

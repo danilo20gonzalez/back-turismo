@@ -26,10 +26,17 @@ def _reject_asset_like_id(value: str):
 def listar_paquetes(
     busqueda: str = "",
     max_precio: int = 1000000,
+    orden: str = "nombre",
     limit: int = 50,
     offset: int = 0,
 ):
-    return PaqueteService.buscar_paquetes(busqueda, max_precio, limit, offset)
+    return PaqueteService.buscar_paquetes(
+        busqueda,
+        max_precio,
+        orden,
+        limit,
+        offset,
+    )
 
 
 @router.get("/{paquete_id}")

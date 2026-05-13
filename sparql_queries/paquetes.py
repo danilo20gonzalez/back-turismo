@@ -4,12 +4,15 @@ from sparql_builder import (
     limit_value,
     literal,
     offset_value,
+    order_by,
     resource,
 )
 
 
 def _package_projection() -> str:
     return """?paquete ?nombre ?descripcion ?precio ?dirigidoA ?duracion ?dificultad ?capacidad
+  ?imagen ?galeria
+  (COUNT(DISTINCT ?reserva) AS ?popularidad)
   (GROUP_CONCAT(DISTINCT ?destinoLabel; separator=" | ") AS ?destinos)
   (GROUP_CONCAT(DISTINCT ?municipioLabel; separator=" | ") AS ?municipios)
   (GROUP_CONCAT(DISTINCT ?categoriaLabel; separator=" | ") AS ?categorias)"""
@@ -24,6 +27,8 @@ def _package_core() -> str:
 
   OPTIONAL { ?paquete ex:duracionDias ?duracion . }
   OPTIONAL { ?paquete ex:capacidadMaxPersonas ?capacidad . }
+  OPTIONAL { ?paquete ex:urlImagen ?imagen . }
+  OPTIONAL { ?paquete ex:galeriaImagenes ?galeria . }
 
   OPTIONAL {
     ?paquete ex:dirigidoA ?dirigido .
@@ -57,18 +62,38 @@ def _package_core() -> str:
       OPTIONAL { ?categoria rdfs:label ?categoriaLabelRaw . }
       BIND(COALESCE(?categoriaLabelRaw, STRAFTER(STR(?categoria), "#")) AS ?categoriaLabel)
     }
+  }
+
+  OPTIONAL {
+    ?reserva rdf:type/rdfs:subClassOf* ex:Reserva ;
+             ex:reservaPaquete ?paquete .
   }"""
 
 
 def _package_group_by() -> str:
-    return "?paquete ?nombre ?descripcion ?precio ?dirigidoA ?duracion ?dificultad ?capacidad"
+    return "?paquete ?nombre ?descripcion ?precio ?dirigidoA ?duracion ?dificultad ?capacidad ?imagen ?galeria"
 
 
-def list_packages(busqueda: str, max_precio: int, limit: int, offset: int) -> str:
+def list_packages(
+    busqueda: str,
+    max_precio: int,
+    orden: str,
+    limit: int,
+    offset: int,
+) -> str:
     q = literal(busqueda or "")
     price = decimal_value(max_precio, default=1_000_000, minimum=0)
     safe_limit = limit_value(limit, default=50)
     safe_offset = offset_value(offset)
+    order_clause = order_by(
+        orden,
+        {
+            "popularidad": "DESC(?popularidad)",
+            "nombre": "?nombre",
+            "precio": "ASC(?precio)",
+        },
+        "nombre",
+    )
 
     return f"""{PREFIXES}
 SELECT
@@ -88,7 +113,7 @@ WHERE {{
   )
 }}
 GROUP BY {_package_group_by()}
-ORDER BY ?nombre
+ORDER BY {order_clause} ?nombre
 LIMIT {safe_limit}
 OFFSET {safe_offset}
 """
@@ -118,7 +143,7 @@ OFFSET {safe_offset}
 def detail_base(paquete_id: str) -> str:
     paquete = resource(paquete_id)
     return f"""{PREFIXES}
-SELECT ?paquete ?nombre ?descripcion ?precio ?duracion ?dificultad ?capacidad ?incluye ?noIncluye
+SELECT ?paquete ?nombre ?descripcion ?precio ?duracion ?dificultad ?capacidad ?incluye ?noIncluye ?imagen ?galeria
 WHERE {{
   VALUES ?paquete {{ {paquete} }}
 
@@ -132,6 +157,8 @@ WHERE {{
   OPTIONAL {{ ?paquete ex:capacidadMaxPersonas ?capacidad . }}
   OPTIONAL {{ ?paquete ex:incluyeDescripcion ?incluye . }}
   OPTIONAL {{ ?paquete ex:noIncluye ?noIncluye . }}
+  OPTIONAL {{ ?paquete ex:urlImagen ?imagen . }}
+  OPTIONAL {{ ?paquete ex:galeriaImagenes ?galeria . }}
 
   OPTIONAL {{
     ?paquete ex:tieneDificultad ?dif .
@@ -145,7 +172,7 @@ WHERE {{
 def detail_destinations(paquete_id: str) -> str:
     paquete = resource(paquete_id)
     return f"""{PREFIXES}
-SELECT ?destinoNombre ?municipioNombre ?lat ?lon ?categoriaLabel
+SELECT ?destino ?destinoNombre ?municipioNombre ?lat ?lon ?categoriaLabel ?imagen ?galeria
 WHERE {{
   VALUES ?paquete {{ {paquete} }}
 
@@ -164,6 +191,8 @@ WHERE {{
 
   OPTIONAL {{ ?destino ex:latitud ?lat . }}
   OPTIONAL {{ ?destino ex:longitud ?lon . }}
+  OPTIONAL {{ ?destino ex:urlImagen ?imagen . }}
+  OPTIONAL {{ ?destino ex:galeriaImagenes ?galeria . }}
 
   OPTIONAL {{
     ?destino rdf:type ?categoria .

@@ -13,8 +13,20 @@ client = SparqlClient()
 
 class PaqueteService:
     @staticmethod
-    def buscar_paquetes(busqueda: str, max_precio: int, limit: int, offset: int):
-        query = paquete_queries.list_packages(busqueda, max_precio, limit, offset)
+    def buscar_paquetes(
+        busqueda: str,
+        max_precio: int,
+        orden: str,
+        limit: int,
+        offset: int,
+    ):
+        query = paquete_queries.list_packages(
+            busqueda,
+            max_precio,
+            orden,
+            limit,
+            offset,
+        )
         raw_results = client.execute_select(query)
         
         paquetes = []
@@ -28,8 +40,12 @@ class PaqueteService:
             capacidad = (
                 int(res["capacidad"]["value"]) if "capacidad" in res else None
             )
+            popularidad = (
+                int(res["popularidad"]["value"]) if "popularidad" in res else None
+            )
+            imagen = res["imagen"]["value"] if "imagen" in res else None
+            galeria = res["galeria"]["value"] if "galeria" in res else None
 
-            # Extraemos los valores de los bindings de Fuseki
             paquetes.append(Paquete(
                 id=res["paquete"]["value"],
                 nombre=res["nombre"]["value"],
@@ -42,6 +58,9 @@ class PaqueteService:
                 municipios=municipios,
                 categorias=categorias,
                 capacidad_max_personas=capacidad,
+                popularidad=popularidad,
+                url_imagen=imagen,
+                galeria_imagenes=galeria,
             ))
         return paquetes
 
@@ -66,12 +85,15 @@ class PaqueteService:
             capacidad_max_personas=int(get_value(base, "capacidad")) if get_value(base, "capacidad") else None,
             incluye_descripcion=get_value(base, "incluye"),
             no_incluye=get_value(base, "noIncluye"),
+            url_imagen=get_value(base, "imagen"),
+            galeria_imagenes=get_value(base, "galeria"),
         )
 
         destinos_results = client.execute_select(paquete_queries.detail_destinations(paquete_id))
         destinos = []
         destinos_seen = set()
         for res in destinos_results:
+            destino_id = get_value(res, "destino")
             nombre = get_value(res, "destinoNombre")
             if not nombre:
                 continue
@@ -79,19 +101,24 @@ class PaqueteService:
             lat_raw = get_value(res, "lat")
             lon_raw = get_value(res, "lon")
             categoria = get_value(res, "categoriaLabel")
+            imagen = get_value(res, "imagen")
+            galeria = get_value(res, "galeria")
             lat = float(lat_raw) if lat_raw else None
             lon = float(lon_raw) if lon_raw else None
-            key = (nombre, municipio, lat, lon, categoria)
+            key = (destino_id, nombre, municipio, lat, lon, categoria, imagen, galeria)
             if key in destinos_seen:
                 continue
             destinos_seen.add(key)
             destinos.append(
                 PaqueteDetalleDestino(
+                    id=destino_id,
                     nombre=nombre,
                     municipio=municipio,
                     latitud=lat,
                     longitud=lon,
                     categoria=categoria,
+                    url_imagen=imagen,
+                    galeria_imagenes=galeria,
                 )
             )
 

@@ -16,3 +16,6 @@ class Paquete(BaseModel):
     municipios: Optional[str] = None     # Municipios concatenados
     categorias: Optional[str] = None     # Categorias concatenadas (tipo de destino)
     capacidad_max_personas: Optional[int] = None  # ex:capacidadMaxPersonas
+    popularidad: Optional[int] = None
+    url_imagen: Optional[str] = None
+    galeria_imagenes: Optional[str] = None

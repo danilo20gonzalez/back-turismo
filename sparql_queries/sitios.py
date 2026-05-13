@@ -33,7 +33,7 @@ def list_sites(
 
     return f"""{PREFIXES}
 SELECT
-  ?destino ?nombre ?descripcion ?municipio ?capacidad
+  ?destino ?nombre ?descripcion ?municipio ?capacidad ?imagen ?galeria
   (GROUP_CONCAT(DISTINCT ?tipoLabel; separator=" | ") AS ?tipos)
   (COUNT(DISTINCT ?paquete) AS ?popularidad)
 WHERE {{
@@ -48,6 +48,8 @@ WHERE {{
   BIND(COALESCE(?nombreRaw, ?nombreProp, STRAFTER(STR(?destino), "#")) AS ?nombre)
 
   OPTIONAL {{ ?destino ex:descripcion ?descripcion . }}
+  OPTIONAL {{ ?destino ex:urlImagen ?imagen . }}
+  OPTIONAL {{ ?destino ex:galeriaImagenes ?galeria . }}
 
   OPTIONAL {{
     ?destino ex:ubicadoEn ?muni .
@@ -111,7 +113,7 @@ WHERE {{
 
   FILTER(!BOUND(?capacidad) || (?capacidad >= {min_cap} && ?capacidad <= {max_cap}))
 }}
-GROUP BY ?destino ?nombre ?descripcion ?municipio ?capacidad
+GROUP BY ?destino ?nombre ?descripcion ?municipio ?capacidad ?imagen ?galeria
 ORDER BY {order_clause}
 LIMIT {limit_value(limit, default=50)}
 OFFSET {offset_value(offset)}
@@ -159,7 +161,7 @@ WHERE {{
 def detail(sitio_id: str) -> str:
     destino = resource(sitio_id)
     return f"""{PREFIXES}
-SELECT ?destino ?nombre ?descripcion ?municipio ?capacidad ?lat ?lon
+SELECT ?destino ?nombre ?descripcion ?municipio ?capacidad ?lat ?lon ?imagen ?galeria
   (GROUP_CONCAT(DISTINCT ?tipoLabel; separator=" | ") AS ?tipos)
 WHERE {{
   VALUES ?destino {{ {destino} }}
@@ -174,6 +176,8 @@ WHERE {{
   OPTIONAL {{ ?destino ex:capacidadCargaDiaria ?capacidad . }}
   OPTIONAL {{ ?destino ex:latitud ?lat . }}
   OPTIONAL {{ ?destino ex:longitud ?lon . }}
+  OPTIONAL {{ ?destino ex:urlImagen ?imagen . }}
+  OPTIONAL {{ ?destino ex:galeriaImagenes ?galeria . }}
 
   OPTIONAL {{
     ?destino ex:ubicadoEn ?muni .
@@ -190,5 +194,5 @@ WHERE {{
     BIND(COALESCE(?tipoLabelRaw, STRAFTER(STR(?tipo), "#")) AS ?tipoLabel)
   }}
 }}
-GROUP BY ?destino ?nombre ?descripcion ?municipio ?capacidad ?lat ?lon
+GROUP BY ?destino ?nombre ?descripcion ?municipio ?capacidad ?lat ?lon ?imagen ?galeria
 """
