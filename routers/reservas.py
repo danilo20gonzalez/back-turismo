@@ -8,16 +8,28 @@ router = APIRouter(prefix="/reservas", tags=["Reservas"])
 @router.post("/crear")
 def crear_nueva_reserva(
     datos: ReservaCreate, 
-    current_user: dict = Depends(get_current_user)
+    current_user = Depends(get_current_user)
 ):
     try:
-        # Extraemos el ID del usuario del token decodificado
-        user_id = current_user["sub"] 
-        return ReservaService.crear_reserva(user_id, datos)
+        return ReservaService.crear_reserva(current_user, datos)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/mis-reservas")
-def listar_mis_reservas(current_user: dict = Depends(get_current_user)):
-    # current_user["sub"] trae el ID del usuario del token
-    return ReservaService.obtener_mis_reservas(current_user["sub"])
+def listar_mis_reservas(current_user = Depends(get_current_user)):
+    return ReservaService.obtener_mis_reservas(current_user)
+
+
+@router.get("/mias")
+def listar_mias_normalizado(current_user = Depends(get_current_user)):
+    return ReservaService.obtener_mias_normalizado(current_user)
+
+
+@router.get("/{reserva_id}")
+def obtener_reserva(reserva_id: str, current_user = Depends(get_current_user)):
+    return ReservaService.obtener_reserva_por_id(current_user, reserva_id)
+
+
+@router.patch("/{reserva_id}/cancelar")
+def cancelar_reserva(reserva_id: str, current_user = Depends(get_current_user)):
+    return ReservaService.cancelar_reserva(current_user, reserva_id)

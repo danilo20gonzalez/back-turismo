@@ -1,6 +1,8 @@
 # services/sitio_service.py
 from typing import Optional
 from sparql_client import SparqlClient
+from sparql_queries import paquetes as paquete_queries
+from sparql_queries import sitios as sitio_queries
 from models.sitio import Sitio
 from models.sitio_filtros import SitioFiltros, SitioTipo, SitioMunicipio
 from models.sitio_detalle import SitioDetalle
@@ -22,6 +24,8 @@ class SitioService:
             municipios = res["municipios"]["value"] if "municipios" in res else None
             categorias = res["categorias"]["value"] if "categorias" in res else None
             capacidad = int(res["capacidad"]["value"]) if "capacidad" in res else None
+            imagen = res["imagen"]["value"] if "imagen" in res else None
+            galeria = res["galeria"]["value"] if "galeria" in res else None
 
             paquetes.append(
                 Paquete(
@@ -36,6 +40,8 @@ class SitioService:
                     municipios=municipios,
                     categorias=categorias,
                     capacidad_max_personas=capacidad,
+                    url_imagen=imagen,
+                    galeria_imagenes=galeria,
                 )
             )
         return paquetes
@@ -51,43 +57,24 @@ class SitioService:
         limit: int,
         offset: int,
     ):
-        busqueda = busqueda or ""
-        tipo = tipo or ""
-        municipio = municipio or ""
-        limit = max(1, min(limit, 100))
-        offset = max(0, offset)
-
-        # Normalizamos rango de capacidad
-        min_cap = cap_min if cap_min is not None else 0
-        max_cap = cap_max if cap_max is not None else 999999999
-        if max_cap < min_cap:
-            max_cap = min_cap
-
-        # Controlamos el orden para evitar inyecciones
-        orden_map = {
-            "popularidad": "DESC(?popularidad)",
-            "nombre": "?nombre",
-            "capacidad": "DESC(?capacidad)",
-        }
-        orden_clause = orden_map.get((orden or "popularidad").lower(), "DESC(?popularidad)")
-
-        params = {
-            "busqueda": busqueda,
-            "tipo": tipo,
-            "municipio": municipio,
-            "cap_min": min_cap,
-            "cap_max": max_cap,
-            "orden": orden_clause,
-            "limit": limit,
-            "offset": offset,
-        }
-
-        raw_results = client.execute_query("sitios", params)
+        query = sitio_queries.list_sites(
+            busqueda,
+            tipo,
+            municipio,
+            cap_min,
+            cap_max,
+            orden,
+            limit,
+            offset,
+        )
+        raw_results = client.execute_select(query)
         sitios = []
         for res in raw_results:
             capacidad = int(res["capacidad"]["value"]) if "capacidad" in res else None
             popularidad = int(res["popularidad"]["value"]) if "popularidad" in res else None
             tipos = res["tipos"]["value"] if "tipos" in res else None
+            imagen = res["imagen"]["value"] if "imagen" in res else None
+            galeria = res["galeria"]["value"] if "galeria" in res else None
 
             sitios.append(
                 Sitio(
@@ -98,6 +85,8 @@ class SitioService:
                     capacidad_diaria=capacidad,
                     tipos=tipos,
                     popularidad=popularidad,
+                    url_imagen=imagen,
+                    galeria_imagenes=galeria,
                 )
             )
 
@@ -105,9 +94,9 @@ class SitioService:
 
     @staticmethod
     def obtener_filtros():
-        tipos_results = client.execute_query("sitios_tipos")
-        municipios_results = client.execute_query("sitios_municipios")
-        capacidad_results = client.execute_query("sitios_capacidad_rango")
+        tipos_results = client.execute_select(sitio_queries.filter_types())
+        municipios_results = client.execute_select(sitio_queries.municipalities())
+        capacidad_results = client.execute_select(sitio_queries.capacity_range())
 
         tipos = []
         for res in tipos_results:
@@ -144,8 +133,7 @@ class SitioService:
 
     @staticmethod
     def obtener_detalle(sitio_id: str):
-        params = {"id": sitio_id}
-        resultados = client.execute_query("sitio_detalle", params)
+        resultados = client.execute_select(sitio_queries.detail(sitio_id))
         if not resultados:
             return None
 
@@ -167,16 +155,13 @@ class SitioService:
             latitud=float(lat) if lat else None,
             longitud=float(lon) if lon else None,
             tipos=get_value("tipos"),
+            url_imagen=get_value("imagen"),
+            galeria_imagenes=get_value("galeria"),
         )
 
     @staticmethod
     def obtener_planes(sitio_id: str, limit: int, offset: int):
-        limit = max(1, min(limit, 100))
-        offset = max(0, offset)
-        params = {
-            "id": sitio_id,
-            "limit": limit,
-            "offset": offset,
-        }
-        raw_results = client.execute_query("sitio_planes", params)
+        raw_results = client.execute_select(
+            paquete_queries.list_packages_for_site(sitio_id, limit, offset)
+        )
         return SitioService._parse_paquetes(raw_results)

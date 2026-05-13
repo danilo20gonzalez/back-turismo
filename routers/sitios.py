@@ -6,6 +6,24 @@ from services.sitio_service import SitioService
 
 router = APIRouter(prefix="/sitios", tags=["Sitios"])
 
+STATIC_FILE_SUFFIXES = (
+    ".css",
+    ".gif",
+    ".ico",
+    ".jpeg",
+    ".jpg",
+    ".js",
+    ".map",
+    ".png",
+    ".svg",
+    ".webp",
+)
+
+
+def _reject_asset_like_id(value: str):
+    if value.lower().endswith(STATIC_FILE_SUFFIXES):
+        raise HTTPException(status_code=404, detail="Sitio no encontrado")
+
 
 @router.get("/")
 def listar_sitios(
@@ -37,6 +55,7 @@ def obtener_filtros():
 
 @router.get("/{sitio_id}")
 def obtener_detalle_sitio(sitio_id: str):
+    _reject_asset_like_id(sitio_id)
     detalle = SitioService.obtener_detalle(sitio_id)
     if detalle is None:
         raise HTTPException(status_code=404, detail="Sitio no encontrado")
@@ -49,4 +68,5 @@ def obtener_planes_por_sitio(
     limit: int = 50,
     offset: int = 0,
 ):
+    _reject_asset_like_id(sitio_id)
     return SitioService.obtener_planes(sitio_id, limit, offset)

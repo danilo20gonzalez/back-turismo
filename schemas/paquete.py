@@ -1,8 +1,10 @@
 # models/paquete.py
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
 class Paquete(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str           # El URI del paquete (ej: http://amaturis.org/ontology#Paquete_Ecoturismo_001)
     nombre: str       # ex:nombre
     precio: float     # ex:precioPorPersona
@@ -14,6 +16,6 @@ class Paquete(BaseModel):
     municipios: Optional[str] = None     # Municipios concatenados
     categorias: Optional[str] = None     # Categorias concatenadas (tipo de destino)
     capacidad_max_personas: Optional[int] = None  # ex:capacidadMaxPersonas
-    
-    class Config:
-        from_attributes = True
+    popularidad: Optional[int] = None
+    url_imagen: Optional[str] = None
+    galeria_imagenes: Optional[str] = None

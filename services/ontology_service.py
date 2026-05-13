@@ -1,6 +1,7 @@
 import httpx
 from config import settings
 from sparql_client import SparqlClient
+from sparql_queries import busqueda as busqueda_queries
 
 # services/ontology_service.py
 async def obtener_contexto_desde_fuseki(mensaje_usuario: str):
@@ -11,8 +12,9 @@ async def obtener_contexto_desde_fuseki(mensaje_usuario: str):
     sparql_client = SparqlClient()
 
     try:
-        # Ejecutar consulta transversal
-        resultados = sparql_client.execute_query("busqueda_transversal", {"busqueda": mensaje_usuario})
+        resultados = sparql_client.execute_select(
+            busqueda_queries.transversal(mensaje_usuario)
+        )
 
         if not resultados:
             # Humanizar respuesta de fallback

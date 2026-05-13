@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 from typing import List, Optional
 
 # Para el registro de nuevos usuarios
@@ -10,12 +10,11 @@ class UsuarioRegistro(BaseModel):
 
 # Para la respuesta estándar de usuario (Post-Update o Auth)
 class UserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     nombre_completo: str
     email: EmailStr
     uri_ontologia: Optional[str] = None
-
-    class Config:
-        from_attributes = True
 
 class UsuarioLogin(BaseModel):
     email: EmailStr

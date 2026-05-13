@@ -1,9 +1,11 @@
 # models/sitio.py
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
 
 class Sitio(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     nombre: str
     descripcion: Optional[str] = None
@@ -11,6 +13,5 @@ class Sitio(BaseModel):
     capacidad_diaria: Optional[int] = None
     tipos: Optional[str] = None
     popularidad: Optional[int] = None
-
-    class Config:
-        from_attributes = True
+    url_imagen: Optional[str] = None
+    galeria_imagenes: Optional[str] = None
