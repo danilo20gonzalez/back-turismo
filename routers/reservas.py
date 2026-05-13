@@ -18,3 +18,18 @@ def crear_nueva_reserva(
 @router.get("/mis-reservas")
 def listar_mis_reservas(current_user = Depends(get_current_user)):
     return ReservaService.obtener_mis_reservas(current_user)
+
+
+@router.get("/mias")
+def listar_mias_normalizado(current_user = Depends(get_current_user)):
+    return ReservaService.obtener_mias_normalizado(current_user)
+
+
+@router.get("/{reserva_id}")
+def obtener_reserva(reserva_id: str, current_user = Depends(get_current_user)):
+    return ReservaService.obtener_reserva_por_id(current_user, reserva_id)
+
+
+@router.patch("/{reserva_id}/cancelar")
+def cancelar_reserva(reserva_id: str, current_user = Depends(get_current_user)):
+    return ReservaService.cancelar_reserva(current_user, reserva_id)

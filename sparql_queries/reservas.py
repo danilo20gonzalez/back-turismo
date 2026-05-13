@@ -103,7 +103,7 @@ INSERT DATA {{
 def user_reservations(user_uri: str) -> str:
     usuario = resource(user_uri)
     return f"""{PREFIXES}
-SELECT ?reserva ?paquete_id ?fecha ?personas ?estado ?precio_unitario ?comunidad_nombre ?total_pagar
+SELECT ?reserva ?paquete ?paquete_id ?paquete_nombre ?fecha ?personas ?estado ?precio_unitario ?comunidad_nombre ?total_pagar ?paquete_imagen
 WHERE {{
   VALUES ?usuario {{ {usuario} }}
 
@@ -121,6 +121,7 @@ WHERE {{
            ex:numeroViajeros ?personas .
 
   BIND(STRAFTER(STR(?paquete), "#") AS ?paquete_id)
+  OPTIONAL {{ ?paquete ex:nombre ?paquete_nombre . }}
 
   OPTIONAL {{
     ?reserva ex:tieneEstado ?estadoTerm .
@@ -138,6 +139,7 @@ WHERE {{
 
   OPTIONAL {{ ?paquete ex:tienePrecio/ex:precioPorPersona ?precio_from_spec . }}
   OPTIONAL {{ ?paquete ex:precioPersona ?precio_legacy . }}
+  OPTIONAL {{ ?paquete ex:urlImagen ?paquete_imagen . }}
   BIND(COALESCE(?precio_from_spec, ?precio_legacy, 0) AS ?precio_unitario)
   BIND(?precio_unitario * ?personas AS ?total_pagar)
 
@@ -167,5 +169,208 @@ WHERE {{
     ?reserva ex:realizaReserva ?usuario .
   }}
   ?reserva rdf:type/rdfs:subClassOf* ex:Reserva .
+}}
+"""
+
+
+def reservation_detail(user_uri: str, reserva_id: str) -> str:
+    usuario = resource(user_uri)
+    reserva = local_resource(reserva_id)
+    return f"""{PREFIXES}
+SELECT ?reserva ?paquete ?paquete_id ?paquete_nombre ?paquete_descripcion ?fecha ?fecha_reserva
+       ?personas ?estado ?precio_unitario ?total_pagar ?paquete_imagen ?duracion ?comunidad_nombre
+       ?destino_nombre ?municipio_nombre ?lat ?lon ?destino_imagen
+WHERE {{
+  VALUES ?usuario {{ {usuario} }}
+  VALUES ?reserva {{ {reserva} }}
+
+  {{
+    ?usuario ex:realizaReserva ?reserva .
+  }}
+  UNION
+  {{
+    ?reserva ex:realizaReserva ?usuario .
+  }}
+
+  ?reserva rdf:type/rdfs:subClassOf* ex:Reserva ;
+           ex:reservaPaquete ?paquete ;
+           ex:fechaInicio ?fecha ;
+           ex:numeroViajeros ?personas .
+
+  OPTIONAL {{ ?reserva ex:fechaReserva ?fecha_reserva . }}
+
+  OPTIONAL {{
+    ?reserva ex:tieneEstado ?estadoTerm .
+    OPTIONAL {{ ?estadoTerm rdfs:label ?estadoLabel . }}
+    OPTIONAL {{ ?estadoTerm ex:nombre ?estadoNombre . }}
+    BIND(
+      IF(
+        isIRI(?estadoTerm),
+        COALESCE(?estadoLabel, ?estadoNombre, STRAFTER(STR(?estadoTerm), "#")),
+        STR(?estadoTerm)
+      ) AS ?estadoFromTerm
+    )
+  }}
+  BIND(COALESCE(?estadoFromTerm, "Pendiente") AS ?estado)
+
+  OPTIONAL {{ ?paquete ex:nombre ?paquete_nombre . }}
+  OPTIONAL {{ ?paquete ex:descripcion ?paquete_descripcion . }}
+  OPTIONAL {{ ?paquete ex:urlImagen ?paquete_imagen . }}
+  OPTIONAL {{ ?paquete ex:duracionDias ?duracion . }}
+  BIND(STRAFTER(STR(?paquete), "#") AS ?paquete_id)
+  
+  OPTIONAL {{
+    ?paquete ex:visitaDestino ?destino .
+    OPTIONAL {{ ?destino rdfs:label ?destino_label . }}
+    OPTIONAL {{ ?destino ex:nombre ?destino_nombre_raw . }}
+    BIND(COALESCE(?destino_label, ?destino_nombre_raw, STRAFTER(STR(?destino), "#")) AS ?destino_nombre)
+    OPTIONAL {{
+      ?destino ex:ubicadoEn ?municipio .
+      OPTIONAL {{ ?municipio rdfs:label ?municipio_label . }}
+      OPTIONAL {{ ?municipio ex:nombre ?municipio_nombre_raw . }}
+      BIND(COALESCE(?municipio_label, ?municipio_nombre_raw, STRAFTER(STR(?municipio), "#")) AS ?municipio_nombre)
+    }}
+    OPTIONAL {{ ?destino ex:latitud ?lat . }}
+    OPTIONAL {{ ?destino ex:longitud ?lon . }}
+    OPTIONAL {{ ?destino ex:urlImagen ?destino_imagen . }}
+  }}
+
+  OPTIONAL {{ ?paquete ex:tienePrecio/ex:precioPorPersona ?precio_from_spec . }}
+  OPTIONAL {{ ?paquete ex:precioPersona ?precio_legacy . }}
+  BIND(COALESCE(?precio_from_spec, ?precio_legacy, 0) AS ?precio_unitario)
+  BIND(?precio_unitario * ?personas AS ?total_pagar)
+
+  OPTIONAL {{
+    ?paquete ex:ofrecidoPor ?comunidad .
+    OPTIONAL {{ ?comunidad rdfs:label ?comunidadLabel . }}
+    OPTIONAL {{ ?comunidad ex:nombre ?comunidadNombre . }}
+    OPTIONAL {{ ?comunidad ex:nombreComunidad ?comunidadNombreLegacy . }}
+    BIND(COALESCE(?comunidadLabel, ?comunidadNombre, ?comunidadNombreLegacy) AS ?comunidad_nombre)
+  }}
+}}
+LIMIT 1
+"""
+
+
+def cancel_reservation(user_uri: str, reserva_id: str) -> str:
+    usuario = resource(user_uri)
+    reserva = local_resource(reserva_id)
+    estado_cancelada = state_resource("Cancelada")
+    return f"""{PREFIXES}
+DELETE {{
+  {reserva} ex:tieneEstado ?oldEstado .
+}}
+INSERT {{
+  {estado_cancelada} rdf:type ex:EstadoReserva ;
+                     rdfs:label {literal("Cancelada", lang="es")} ;
+                     ex:nombre {literal("Cancelada")} .
+  {reserva} ex:tieneEstado {estado_cancelada} .
+}}
+WHERE {{
+  VALUES ?usuario {{ {usuario} }}
+  {{
+    ?usuario ex:realizaReserva {reserva} .
+  }}
+  UNION
+  {{
+    {reserva} ex:realizaReserva ?usuario .
+  }}
+  {reserva} rdf:type/rdfs:subClassOf* ex:Reserva .
+  OPTIONAL {{ {reserva} ex:tieneEstado ?oldEstado . }}
+}}
+"""
+
+
+def operator_reservations() -> str:
+    return f"""{PREFIXES}
+SELECT ?reserva ?paquete ?paquete_id ?paquete_nombre ?paquete_imagen ?fecha ?fecha_reserva
+       ?personas ?estado ?precio_unitario ?total_pagar ?comunidad_nombre
+       ?turista_nombre ?turista_email
+WHERE {{
+  ?reserva rdf:type/rdfs:subClassOf* ex:Reserva ;
+           ex:reservaPaquete ?paquete ;
+           ex:fechaInicio ?fecha ;
+           ex:numeroViajeros ?personas .
+
+  BIND(STRAFTER(STR(?paquete), "#") AS ?paquete_id)
+
+  OPTIONAL {{ ?reserva ex:fechaReserva ?fecha_reserva . }}
+  OPTIONAL {{ ?paquete ex:nombre ?paquete_nombre . }}
+  OPTIONAL {{ ?paquete ex:urlImagen ?paquete_imagen . }}
+
+  OPTIONAL {{
+    ?reserva ex:tieneEstado ?estadoTerm .
+    OPTIONAL {{ ?estadoTerm rdfs:label ?estadoLabel . }}
+    OPTIONAL {{ ?estadoTerm ex:nombre ?estadoNombre . }}
+    BIND(
+      IF(
+        isIRI(?estadoTerm),
+        COALESCE(?estadoLabel, ?estadoNombre, STRAFTER(STR(?estadoTerm), "#")),
+        STR(?estadoTerm)
+      ) AS ?estadoFromTerm
+    )
+  }}
+  BIND(COALESCE(?estadoFromTerm, "Pendiente") AS ?estado)
+
+  OPTIONAL {{ ?paquete ex:tienePrecio/ex:precioPorPersona ?precio_from_spec . }}
+  OPTIONAL {{ ?paquete ex:precioPersona ?precio_legacy . }}
+  BIND(COALESCE(?precio_from_spec, ?precio_legacy, 0) AS ?precio_unitario)
+  BIND(?precio_unitario * ?personas AS ?total_pagar)
+
+  OPTIONAL {{
+    ?paquete ex:ofrecidoPor ?comunidad .
+    OPTIONAL {{ ?comunidad rdfs:label ?comunidadLabel . }}
+    OPTIONAL {{ ?comunidad ex:nombre ?comunidadNombre . }}
+    OPTIONAL {{ ?comunidad ex:nombreComunidad ?comunidadNombreLegacy . }}
+    BIND(COALESCE(?comunidadLabel, ?comunidadNombre, ?comunidadNombreLegacy) AS ?comunidad_nombre)
+  }}
+
+  OPTIONAL {{
+    {{
+      ?turista ex:realizaReserva ?reserva .
+    }}
+    UNION
+    {{
+      ?reserva ex:realizaReserva ?turista .
+    }}
+    OPTIONAL {{ ?turista ex:nombre ?turista_nombre_raw . }}
+    OPTIONAL {{ ?turista rdfs:label ?turista_label . }}
+    OPTIONAL {{ ?turista ex:email ?turista_email . }}
+    BIND(COALESCE(?turista_nombre_raw, ?turista_label, STRAFTER(STR(?turista), "#")) AS ?turista_nombre)
+  }}
+}}
+ORDER BY DESC(?fecha)
+"""
+
+
+def reservation_exists(reserva_id: str) -> str:
+    reserva = local_resource(reserva_id)
+    return f"""{PREFIXES}
+SELECT ?reserva
+WHERE {{
+  VALUES ?reserva {{ {reserva} }}
+  ?reserva rdf:type/rdfs:subClassOf* ex:Reserva .
+}}
+LIMIT 1
+"""
+
+
+def set_reservation_state(reserva_id: str, estado: str) -> str:
+    reserva = local_resource(reserva_id)
+    estado_recurso = state_resource(estado)
+    estado_label = estado.capitalize()
+    return f"""{PREFIXES}
+DELETE {{
+  {reserva} ex:tieneEstado ?oldEstado .
+}}
+INSERT {{
+  {estado_recurso} rdf:type ex:EstadoReserva ;
+                   rdfs:label {literal(estado_label, lang="es")} ;
+                   ex:nombre {literal(estado_label)} .
+  {reserva} ex:tieneEstado {estado_recurso} .
+}}
+WHERE {{
+  {reserva} rdf:type/rdfs:subClassOf* ex:Reserva .
+  OPTIONAL {{ {reserva} ex:tieneEstado ?oldEstado . }}
 }}
 """

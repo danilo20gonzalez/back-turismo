@@ -16,6 +16,7 @@ from routers import sitios
 from routers import usuarios
 from routers import reservas
 from routers import chat
+from routers import operador
 
 app = FastAPI(
     title="AmaTuris API",
@@ -39,6 +40,7 @@ app.include_router(paquetes.router)
 app.include_router(sitios.router)
 app.include_router(usuarios.router)
 app.include_router(reservas.router)
+app.include_router(operador.router)
 app.include_router(chat.router, tags=["Chat"])
 app.include_router(chat.router, prefix="/api/v1", tags=["Chat"])  # Prefijo para las rutas de chat
 
