@@ -6,12 +6,81 @@ from sqlalchemy.orm import Session
 from core.auth import create_access_token, get_password_hash, verify_password
 from core.roles import ROLE_OPERADOR, normalize_role_name
 from models.user import Role, Usuario
+from schemas.paquete import Paquete
 from schemas.usuario import ProfileUpdate, UsuarioLogin, UsuarioRegistro
 from sparql_client import SparqlClient
 from sparql_queries import usuarios as usuario_queries
 
 
 client = SparqlClient()
+
+
+def _package_from_row(row) -> Paquete:
+    return Paquete(
+        id=row["paquete"]["value"],
+        nombre=row["nombre"]["value"],
+        precio=float(row["precio"]["value"]),
+        descripcion=row["descripcion"]["value"],
+        dirigidoA=row.get("dirigidoA", {}).get("value"),
+        duracion_dias=int(row["duracion"]["value"]) if "duracion" in row else None,
+        dificultad=row.get("dificultad", {}).get("value"),
+        destinos=row.get("destinos", {}).get("value"),
+        municipios=row.get("municipios", {}).get("value"),
+        categorias=row.get("categorias", {}).get("value"),
+        capacidad_max_personas=int(row["capacidad"]["value"]) if "capacidad" in row else None,
+        popularidad=int(row["popularidad"]["value"]) if "popularidad" in row else None,
+        url_imagen=row.get("imagen", {}).get("value"),
+        galeria_imagenes=row.get("galeria", {}).get("value"),
+    )
+
+
+def _packages_from_favorite_rows(rows) -> list[Paquete]:
+    grouped: dict[str, dict] = {}
+
+    for row in rows:
+        package_id = row["paquete"]["value"]
+        current = grouped.setdefault(
+            package_id,
+            {
+                "row": row,
+                "destinos": set(),
+                "municipios": set(),
+                "categorias": set(),
+            },
+        )
+
+        for source, target in (
+            ("destinoLabel", "destinos"),
+            ("municipioLabel", "municipios"),
+            ("categoriaLabel", "categorias"),
+        ):
+            value = row.get(source, {}).get("value")
+            if value:
+                current[target].add(value)
+
+    packages = []
+    for item in grouped.values():
+        row = item["row"]
+        packages.append(
+            Paquete(
+                id=row["paquete"]["value"],
+                nombre=row["nombre"]["value"],
+                precio=float(row["precio"]["value"]),
+                descripcion=row["descripcion"]["value"],
+                dirigidoA=row.get("dirigidoA", {}).get("value"),
+                duracion_dias=int(row["duracion"]["value"]) if "duracion" in row else None,
+                dificultad=row.get("dificultad", {}).get("value"),
+                destinos=" | ".join(sorted(item["destinos"])) or None,
+                municipios=" | ".join(sorted(item["municipios"])) or None,
+                categorias=" | ".join(sorted(item["categorias"])) or None,
+                capacidad_max_personas=int(row["capacidad"]["value"]) if "capacidad" in row else None,
+                popularidad=int(row["popularidad"]["value"]) if "popularidad" in row else None,
+                url_imagen=row.get("imagen", {}).get("value"),
+                galeria_imagenes=row.get("galeria", {}).get("value"),
+            )
+        )
+
+    return packages
 
 
 class UsuarioService:
@@ -150,11 +219,70 @@ class UsuarioService:
             client.execute_sparql_update(
                 usuario_queries.update_profile(
                     user_uri_value=usuario_queries.resolve_user_uri(user),
+                    name=data.name,
                     location=data.location,
-                    avatar=data.avatar or "https://www.gravatar.com/avatar/000?d=mp",
+                    bio=data.bio or "",
                 )
             )
         except Exception as e:
             print(f"Error en persistencia semantica: {e}")
 
         return user
+
+    @staticmethod
+    def change_password(db: Session, user: Usuario, current_password: str, new_password: str):
+        if not verify_password(current_password, user.password_hash):
+            raise HTTPException(status_code=400, detail="La contrasena actual no es correcta")
+
+        if current_password == new_password:
+            raise HTTPException(
+                status_code=400,
+                detail="La nueva contrasena debe ser diferente a la actual",
+            )
+
+        password_hash = get_password_hash(new_password)
+        user.password_hash = password_hash
+        db.commit()
+        db.refresh(user)
+
+        try:
+            client.execute_sparql_update(
+                usuario_queries.update_password_hash(
+                    user_uri_value=usuario_queries.resolve_user_uri(user),
+                    password_hash=password_hash,
+                )
+            )
+        except Exception as e:
+            print(f"Error al sincronizar contrasena en Fuseki: {e}")
+
+        return user
+
+    @staticmethod
+    def list_favorites(user: Usuario):
+        favorite_rows = client.execute_select(
+            usuario_queries.favorite_package_ids(usuario_queries.resolve_user_uri(user))
+        )
+        package_ids = [row["paquete"]["value"] for row in favorite_rows if "paquete" in row]
+        if not package_ids:
+            return []
+
+        rows = client.execute_select(usuario_queries.favorite_packages(package_ids))
+        return _packages_from_favorite_rows(rows)
+
+    @staticmethod
+    def add_favorite(user: Usuario, paquete_id: str):
+        client.execute_sparql_update(
+            usuario_queries.add_favorite(
+                user_uri_value=usuario_queries.resolve_user_uri(user),
+                paquete_id=paquete_id,
+            )
+        )
+
+    @staticmethod
+    def remove_favorite(user: Usuario, paquete_id: str):
+        client.execute_sparql_update(
+            usuario_queries.remove_favorite(
+                user_uri_value=usuario_queries.resolve_user_uri(user),
+                paquete_id=paquete_id,
+            )
+        )

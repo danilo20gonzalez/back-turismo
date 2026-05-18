@@ -238,7 +238,7 @@ WHERE {{
 def detail_itineraries(paquete_id: str) -> str:
     paquete = resource(paquete_id)
     return f"""{PREFIXES}
-SELECT ?titulo ?descripcion
+SELECT ?it ?titulo ?descripcion
 WHERE {{
   VALUES ?paquete {{ {paquete} }}
 
@@ -251,4 +251,5 @@ WHERE {{
   BIND(COALESCE(?itLabel, ?itNombre, STRAFTER(STR(?it), "#")) AS ?titulo)
   BIND(COALESCE(?itDescripcion, ?itDesc) AS ?descripcion)
 }}
+ORDER BY ?it
 """

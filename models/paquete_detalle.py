@@ -17,6 +17,7 @@ class PaqueteDetalleServicio(BaseModel):
     tipo: Optional[str] = None
 
 class PaqueteDetalleItinerario(BaseModel):
+    id: Optional[str] = None
     titulo: Optional[str] = None
     descripcion: Optional[str] = None
 

@@ -147,16 +147,18 @@ class PaqueteService:
         itinerarios = []
         itinerarios_seen = set()
         for res in itinerarios_results:
+            itinerary_id = get_value(res, "it")
             titulo = get_value(res, "titulo")
             descripcion = get_value(res, "descripcion")
             if not titulo and not descripcion:
                 continue
-            key = (titulo, descripcion)
+            key = (itinerary_id, titulo, descripcion)
             if key in itinerarios_seen:
                 continue
             itinerarios_seen.add(key)
             itinerarios.append(
                 PaqueteDetalleItinerario(
+                    id=itinerary_id,
                     titulo=titulo,
                     descripcion=descripcion,
                 )

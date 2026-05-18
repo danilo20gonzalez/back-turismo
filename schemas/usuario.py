@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from typing import List, Optional
 
 # Para el registro de nuevos usuarios
@@ -38,6 +38,7 @@ class ProfileResponse(BaseModel):
     name: str
     location: str
     avatar: Optional[str] = None
+    bio: Optional[str] = None
     stats: ProfileStats
     bookings: List[dict] = []
     history: List[dict] = []
@@ -47,5 +48,8 @@ class ProfileResponse(BaseModel):
 class ProfileUpdate(BaseModel):
     name: str
     location: str
-    avatar: Optional[str] = None
     bio: Optional[str] = None
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8)

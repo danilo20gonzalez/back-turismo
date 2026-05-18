@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from core.auth import get_current_user
 from core.database import get_db
 from schemas.usuario import (
+    ChangePasswordRequest,
     ProfileResponse,
     ProfileUpdate,
     UsuarioLogin,
@@ -50,6 +51,28 @@ def obtener_mi_perfil(db: Session = Depends(get_db), current_user=Depends(get_cu
     reservas_activas = []
     historial_viajes = []
     total_reservas = 0
+    perfil_semantico = {}
+
+    def semantic_value(key: str) -> str:
+        return perfil_semantico.get(key, {}).get("value", "").strip()
+
+    def format_member_since(value: str) -> str | None:
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return parsed.strftime("%B %Y")
+        except ValueError:
+            return value.split("T")[0]
+
+    try:
+        resultados_perfil = client.execute_select(
+            usuario_queries.profile_summary(user_uri_completa)
+        )
+        if resultados_perfil:
+            perfil_semantico = resultados_perfil[0]
+    except Exception as e:
+        print(f"Error al conectar con Fuseki (Perfil): {e}")
 
     try:
         resultados_stats = client.execute_select(reserva_queries.user_stats(user_uri_completa))
@@ -104,22 +127,27 @@ def obtener_mi_perfil(db: Session = Depends(get_db), current_user=Depends(get_cu
     except Exception as e:
         print(f"Error al obtener lista de reservas detallada: {e}")
 
+    member_since = format_member_since(semantic_value("fechaRegistro"))
+    if not member_since and hasattr(current_user, "fecha_registro"):
+        member_since = current_user.fecha_registro.strftime("%B %Y")
+
+    location = semantic_value("location") or "Florencia, Caqueta"
+
     return {
-        "name": current_user.nombre_completo,
-        "location": "Florencia, Caqueta",
-        "avatar": "https://www.gravatar.com/avatar/000?d=mp",
+        "name": semantic_value("nombre") or current_user.nombre_completo,
+        "location": location,
+        "avatar": semantic_value("avatar") or "https://www.gravatar.com/avatar/000?d=mp",
+        "bio": semantic_value("bio"),
         "stats": {
             "totalTrips": total_reservas,
             "explorerLevel": nivel,
-            "memberSince": current_user.fecha_registro.strftime("%B %Y")
-            if hasattr(current_user, "fecha_registro")
-            else "Abril 2026",
+            "memberSince": member_since or "Abril 2026",
         },
         "bookings": reservas_activas,
         "history": historial_viajes,
         "map": {
             "title": "Tu ubicacion",
-            "subtitle": "Florencia, Caqueta",
+            "subtitle": location,
             "lat": 1.61,
             "lng": -75.6,
         },
@@ -134,3 +162,35 @@ def update_user_profile(
 ):
     updated_user = UsuarioService.update_profile(db, current_user, data)
     return updated_user
+
+
+@router.put("/me/password")
+def change_password(
+    data: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    UsuarioService.change_password(
+        db=db,
+        user=current_user,
+        current_password=data.current_password,
+        new_password=data.new_password,
+    )
+    return {"message": "Contrasena actualizada correctamente"}
+
+
+@router.get("/me/favoritos")
+def list_favorites(current_user=Depends(get_current_user)):
+    return UsuarioService.list_favorites(current_user)
+
+
+@router.post("/me/favoritos/{paquete_id}")
+def add_favorite(paquete_id: str, current_user=Depends(get_current_user)):
+    UsuarioService.add_favorite(current_user, paquete_id)
+    return {"message": "Favorito agregado correctamente"}
+
+
+@router.delete("/me/favoritos/{paquete_id}")
+def remove_favorite(paquete_id: str, current_user=Depends(get_current_user)):
+    UsuarioService.remove_favorite(current_user, paquete_id)
+    return {"message": "Favorito eliminado correctamente"}
