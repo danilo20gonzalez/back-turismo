@@ -13,6 +13,7 @@ class PaqueteDetalleDestino(BaseModel):
     galeria_imagenes: Optional[str] = None
 
 class PaqueteDetalleServicio(BaseModel):
+    id: Optional[str] = None
     nombre: str
     tipo: Optional[str] = None
 
@@ -37,6 +38,7 @@ class PaqueteDetalle(BaseModel):
     agencia_nombre: Optional[str] = None
     url_imagen: Optional[str] = None
     galeria_imagenes: Optional[str] = None
+    estado_publicacion: Optional[str] = None
     destinos: Optional[List[PaqueteDetalleDestino]] = None
     servicios: Optional[List[PaqueteDetalleServicio]] = None
     itinerarios: Optional[List[PaqueteDetalleItinerario]] = None

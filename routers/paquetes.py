@@ -42,7 +42,7 @@ def listar_paquetes(
 @router.get("/{paquete_id}")
 def obtener_detalle_paquete(paquete_id: str):
     _reject_asset_like_id(paquete_id)
-    detalle = PaqueteService.obtener_detalle(paquete_id)
+    detalle = PaqueteService.obtener_detalle_publico(paquete_id)
     if detalle is None:
         raise HTTPException(status_code=404, detail="Paquete no encontrado")
     return detalle

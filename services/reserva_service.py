@@ -1,10 +1,14 @@
 import uuid
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 from fastapi import HTTPException
 
 from core.roles import is_admin, is_operator_or_admin
-from schemas.reserva import ReservaCreate
+from schemas.reserva import (
+    ReservaCreate,
+    ReservaDisponibilidadDestino,
+    ReservaDisponibilidadResponse,
+)
 from sparql_builder import EX, resource_uri
 from sparql_client import SparqlClient
 from sparql_queries import paquetes as paquete_queries
@@ -16,6 +20,115 @@ client = SparqlClient()
 
 
 class ReservaService:
+    @staticmethod
+    def _minimum_booking_date() -> date:
+        return date.today() + timedelta(days=1)
+
+    @staticmethod
+    def _normalize_date(raw: str | date) -> date:
+        if isinstance(raw, date):
+            return raw
+        return date.fromisoformat(str(raw))
+
+    @staticmethod
+    def _assert_minimum_booking_date(fecha_viaje: date):
+        minimum = ReservaService._minimum_booking_date()
+        if fecha_viaje < minimum:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Solo puedes reservar desde {minimum.isoformat()} en adelante.",
+            )
+
+    @staticmethod
+    def _availability_context(paquete_uri: str, fecha_desde: date, fecha_hasta: date):
+        constraints_rows = client.execute_select(
+            reserva_queries.package_capacity_and_destinations(paquete_uri)
+        )
+        if not constraints_rows:
+            raise HTTPException(status_code=404, detail="Paquete no encontrado")
+
+        first = constraints_rows[0]
+        capacidad_paquete = (
+            int(first["capacidadMax"]["value"])
+            if first.get("capacidadMax", {}).get("value")
+            else None
+        )
+
+        destinos: dict[str, dict] = {}
+        for row in constraints_rows:
+            destino_uri = row.get("destino", {}).get("value")
+            if not destino_uri:
+                continue
+            if destino_uri in destinos:
+                continue
+            capacidad_destino_raw = row.get("capacidadDestino", {}).get("value")
+            destinos[destino_uri] = {
+                "id": destino_uri,
+                "nombre": row.get("destinoNombre", {}).get("value")
+                or destino_uri.split("#")[-1],
+                "capacidad_diaria": int(capacidad_destino_raw)
+                if capacidad_destino_raw
+                else None,
+            }
+
+        ocupacion_paquete_rows = client.execute_select(
+            reserva_queries.occupancy_for_package_by_date(
+                paquete_uri, fecha_desde, fecha_hasta
+            )
+        )
+        ocupacion_paquete: dict[date, int] = {}
+        for row in ocupacion_paquete_rows:
+            fecha_raw = row.get("fecha", {}).get("value")
+            if not fecha_raw:
+                continue
+            fecha_key = ReservaService._normalize_date(fecha_raw)
+            viajeros = int(row.get("viajeros", {}).get("value", 0) or 0)
+            ocupacion_paquete[fecha_key] = ocupacion_paquete.get(fecha_key, 0) + viajeros
+
+        ocupacion_destino_rows = client.execute_select(
+            reserva_queries.occupancy_for_destinations_by_date(
+                paquete_uri, fecha_desde, fecha_hasta
+            )
+        )
+        ocupacion_destino: dict[tuple[str, date], int] = {}
+        for row in ocupacion_destino_rows:
+            destino_uri = row.get("destino", {}).get("value")
+            fecha_raw = row.get("fecha", {}).get("value")
+            if not destino_uri or not fecha_raw:
+                continue
+            key = (destino_uri, ReservaService._normalize_date(fecha_raw))
+            viajeros = int(row.get("viajeros", {}).get("value", 0) or 0)
+            ocupacion_destino[key] = ocupacion_destino.get(key, 0) + viajeros
+
+        return capacidad_paquete, destinos, ocupacion_paquete, ocupacion_destino
+
+    @staticmethod
+    def _is_date_available(
+        fecha_viaje: date,
+        viajeros: int,
+        capacidad_paquete: int | None,
+        destinos: dict[str, dict],
+        ocupacion_paquete: dict[date, int],
+        ocupacion_destino: dict[tuple[str, date], int],
+    ) -> bool:
+        if viajeros <= 0:
+            return False
+
+        if capacidad_paquete is not None:
+            ocupado = ocupacion_paquete.get(fecha_viaje, 0)
+            if (ocupado + viajeros) > capacidad_paquete:
+                return False
+
+        for destino_uri, destino in destinos.items():
+            capacidad_destino = destino.get("capacidad_diaria")
+            if capacidad_destino is None:
+                continue
+            ocupado_destino = ocupacion_destino.get((destino_uri, fecha_viaje), 0)
+            if (ocupado_destino + viajeros) > capacidad_destino:
+                return False
+
+        return True
+
     @staticmethod
     def _normalize_status(raw_status: str) -> tuple[str, str]:
         estado_lower = (raw_status or "Pendiente").lower()
@@ -86,35 +199,38 @@ class ReservaService:
 
     @staticmethod
     def crear_reserva(user, datos: ReservaCreate):
+        ReservaService._assert_minimum_booking_date(datos.fecha_viaje)
+
         reserva_uuid = str(uuid.uuid4())[:8]
         reserva_uri = f"{EX}Reserva_{reserva_uuid}"
         user_uri = ReservaService._user_uri(user)
         paquete_uri = ReservaService._package_uri(datos.paquete_id)
 
-        res_capacidad = client.execute_select(
-            reserva_queries.capacity_for_package(paquete_uri, datos.fecha_viaje)
+        (
+            capacidad_paquete,
+            destinos,
+            ocupacion_paquete,
+            ocupacion_destino,
+        ) = ReservaService._availability_context(
+            paquete_uri, datos.fecha_viaje, datos.fecha_viaje
         )
 
-        if res_capacidad:
-            cap_max = int(res_capacidad[0]["capacidadMax"]["value"])
-            ocupado = (
-                int(res_capacidad[0]["totalOcupado"]["value"])
-                if "totalOcupado" in res_capacidad[0]
-                and res_capacidad[0]["totalOcupado"]["value"] != ""
-                else 0
+        solicitados = max(1, int(datos.cantidad_personas))
+        if not ReservaService._is_date_available(
+            fecha_viaje=datos.fecha_viaje,
+            viajeros=solicitados,
+            capacidad_paquete=capacidad_paquete,
+            destinos=destinos,
+            ocupacion_paquete=ocupacion_paquete,
+            ocupacion_destino=ocupacion_destino,
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "No hay cupo disponible para la fecha seleccionada "
+                    "segun capacidad del plan o del destino."
+                ),
             )
-
-            solicitados = datos.cantidad_personas
-
-            if (ocupado + solicitados) > cap_max:
-                cupos_libres = cap_max - ocupado
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        "Capacidad excedida para esta fecha. "
-                        f"Cupos disponibles: {cupos_libres}. Solicitados: {solicitados}"
-                    ),
-                )
 
         client.execute_sparql_update(
             reserva_queries.insert_reservation(
@@ -122,7 +238,7 @@ class ReservaService:
                 user_uri=user_uri,
                 paquete_id=paquete_uri,
                 fecha_inicio=datos.fecha_viaje,
-                numero_viajeros=datos.cantidad_personas,
+                numero_viajeros=solicitados,
                 estado="Confirmada",
             )
         )
@@ -131,6 +247,64 @@ class ReservaService:
             "message": "Reserva creada exitosamente",
             "reserva_id": reserva_uri.split("#")[-1],
         }
+
+    @staticmethod
+    def disponibilidad_para_paquete(
+        paquete_id: str,
+        dias: int = 90,
+        viajeros: int = 1,
+    ) -> ReservaDisponibilidadResponse:
+        paquete_uri = ReservaService._package_uri(paquete_id)
+        dias_seguro = max(1, min(int(dias), 365))
+        viajeros_seguro = max(1, min(int(viajeros), 500))
+        fecha_minima = ReservaService._minimum_booking_date()
+        fecha_maxima = fecha_minima + timedelta(days=dias_seguro - 1)
+
+        (
+            capacidad_paquete,
+            destinos,
+            ocupacion_paquete,
+            ocupacion_destino,
+        ) = ReservaService._availability_context(
+            paquete_uri, fecha_minima, fecha_maxima
+        )
+
+        disponibles: list[date] = []
+        no_disponibles: list[date] = []
+        for offset in range(dias_seguro):
+            fecha = fecha_minima + timedelta(days=offset)
+            if ReservaService._is_date_available(
+                fecha_viaje=fecha,
+                viajeros=viajeros_seguro,
+                capacidad_paquete=capacidad_paquete,
+                destinos=destinos,
+                ocupacion_paquete=ocupacion_paquete,
+                ocupacion_destino=ocupacion_destino,
+            ):
+                disponibles.append(fecha)
+            else:
+                no_disponibles.append(fecha)
+
+        destinos_limitados = [
+            ReservaDisponibilidadDestino(
+                id=destino["id"],
+                nombre=destino["nombre"],
+                capacidad_diaria=destino["capacidad_diaria"],
+            )
+            for destino in destinos.values()
+            if destino.get("capacidad_diaria") is not None
+        ]
+
+        return ReservaDisponibilidadResponse(
+            paquete_id=paquete_uri,
+            fecha_minima=fecha_minima,
+            dias=dias_seguro,
+            viajeros=viajeros_seguro,
+            capacidad_paquete=capacidad_paquete,
+            destinos_limitados=destinos_limitados,
+            fechas_disponibles=disponibles,
+            fechas_no_disponibles=no_disponibles,
+        )
 
     @staticmethod
     def obtener_mis_reservas(user):

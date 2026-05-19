@@ -63,6 +63,103 @@ GROUP BY ?capacidadMax
 """
 
 
+def package_capacity_and_destinations(paquete_id: str) -> str:
+    paquete = resource(paquete_id)
+    return f"""{PREFIXES}
+SELECT ?paquete ?capacidadMax ?destino ?destinoNombre ?capacidadDestino
+WHERE {{
+  VALUES ?paquete {{ {paquete} }}
+  ?paquete rdf:type/rdfs:subClassOf* ex:PaqueteTuristico .
+  OPTIONAL {{ ?paquete ex:capacidadMaxPersonas ?capacidadMax . }}
+
+  OPTIONAL {{
+    ?paquete ex:visitaDestino ?destino .
+    OPTIONAL {{ ?destino rdfs:label ?destinoLabel . }}
+    OPTIONAL {{ ?destino ex:nombre ?destinoName . }}
+    OPTIONAL {{ ?destino ex:capacidadCargaDiaria ?capacidadDestino . }}
+    BIND(COALESCE(?destinoLabel, ?destinoName, STRAFTER(STR(?destino), "#")) AS ?destinoNombre)
+  }}
+}}
+"""
+
+
+def occupancy_for_package_by_date(
+    paquete_id: str,
+    fecha_desde: date | str,
+    fecha_hasta: date | str,
+) -> str:
+    paquete = resource(paquete_id)
+    desde = date_literal(fecha_desde)
+    hasta = date_literal(fecha_hasta)
+    return f"""{PREFIXES}
+SELECT ?fecha ?viajeros
+WHERE {{
+  ?reserva rdf:type/rdfs:subClassOf* ex:Reserva ;
+           ex:reservaPaquete {paquete} ;
+           ex:fechaInicio ?fecha ;
+           ex:numeroViajeros ?viajeros .
+
+  FILTER(?fecha >= {desde} && ?fecha <= {hasta})
+
+  OPTIONAL {{
+    ?reserva ex:tieneEstado ?estadoTerm .
+    OPTIONAL {{ ?estadoTerm rdfs:label ?estadoLabel . }}
+    OPTIONAL {{ ?estadoTerm ex:nombre ?estadoNombre . }}
+    BIND(
+      IF(
+        isIRI(?estadoTerm),
+        COALESCE(?estadoLabel, ?estadoNombre, STRAFTER(STR(?estadoTerm), "#")),
+        STR(?estadoTerm)
+      ) AS ?estadoText
+    )
+  }}
+
+  FILTER(!BOUND(?estadoText) || !CONTAINS(LCASE(STR(?estadoText)), "cancelad"))
+}}
+"""
+
+
+def occupancy_for_destinations_by_date(
+    paquete_id: str,
+    fecha_desde: date | str,
+    fecha_hasta: date | str,
+) -> str:
+    paquete_objetivo = resource(paquete_id)
+    desde = date_literal(fecha_desde)
+    hasta = date_literal(fecha_hasta)
+    return f"""{PREFIXES}
+SELECT ?destino ?fecha ?viajeros
+WHERE {{
+  VALUES ?paqueteObjetivo {{ {paquete_objetivo} }}
+  ?paqueteObjetivo ex:visitaDestino ?destino .
+
+  ?reserva ex:reservaPaquete ?paquete ;
+           ex:fechaInicio ?fecha ;
+           ex:numeroViajeros ?viajeros .
+
+  ?paquete rdf:type/rdfs:subClassOf* ex:PaqueteTuristico ;
+           ex:visitaDestino ?destino .
+
+  FILTER(?fecha >= {desde} && ?fecha <= {hasta})
+
+  OPTIONAL {{
+    ?reserva ex:tieneEstado ?estadoTerm .
+    OPTIONAL {{ ?estadoTerm rdfs:label ?estadoLabel . }}
+    OPTIONAL {{ ?estadoTerm ex:nombre ?estadoNombre . }}
+    BIND(
+      IF(
+        isIRI(?estadoTerm),
+        COALESCE(?estadoLabel, ?estadoNombre, STRAFTER(STR(?estadoTerm), "#")),
+        STR(?estadoTerm)
+      ) AS ?estadoText
+    )
+  }}
+
+  FILTER(!BOUND(?estadoText) || !CONTAINS(LCASE(STR(?estadoText)), "cancelad"))
+}}
+"""
+
+
 def insert_reservation(
     reserva_uri: str,
     user_uri: str,

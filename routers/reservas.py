@@ -12,8 +12,23 @@ def crear_nueva_reserva(
 ):
     try:
         return ReservaService.crear_reserva(current_user, datos)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/disponibilidad/{paquete_id}")
+def disponibilidad_reserva_paquete(
+    paquete_id: str,
+    dias: int = 90,
+    viajeros: int = 1,
+):
+    return ReservaService.disponibilidad_para_paquete(
+        paquete_id=paquete_id,
+        dias=dias,
+        viajeros=viajeros,
+    )
 
 @router.get("/mis-reservas")
 def listar_mis_reservas(current_user = Depends(get_current_user)):
