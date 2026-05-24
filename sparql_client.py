@@ -1,6 +1,7 @@
 import os
 import re
 
+import httpx
 from SPARQLWrapper import JSON, POST, SPARQLWrapper
 
 from config import settings
@@ -39,6 +40,8 @@ class SparqlClient:
                 query_str = re.sub(r"(?im)^\s*OFFSET\s+\d+", f"OFFSET {offset}", query_str)
         return query_str
 
+    # ─── métodos síncronos (legacy) ────────────────────────────────────────
+
     def execute_select(self, query_str: str):
         sparql = SPARQLWrapper(self.query_url)
         sparql.setQuery(query_str)
@@ -73,3 +76,36 @@ class SparqlClient:
         """Compatibilidad con archivos .sparql heredados."""
         query_str = self._get_query_string(query_name, params)
         return self.execute_sparql_update(query_str)
+
+    # ─── métodos asíncronos (nuevos) ───────────────────────────────────────
+
+    async def execute_select_async(self, query_str: str, timeout: float = 30.0):
+        """Ejecuta una SELECT SPARQL usando httppx asíncrono."""
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            try:
+                response = await client.post(
+                    self.query_url,
+                    data={"query": query_str},
+                    headers={"Accept": "application/sparql-results+json"},
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data.get("results", {}).get("bindings", [])
+            except Exception as e:
+                print(f"Error en query SPARQL async: {e}")
+                raise
+
+    async def execute_sparql_update_async(self, query_str: str, timeout: float = 30.0):
+        """Ejecuta una UPDATE SPARQL usando httppx asíncrono."""
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            try:
+                response = await client.post(
+                    self.update_url,
+                    data={"update": query_str},
+                    headers={"Accept": "application/sparql-results+json"},
+                )
+                response.raise_for_status()
+                return True
+            except Exception as e:
+                print(f"Error en UPDATE SPARQL async: {e}")
+                raise
