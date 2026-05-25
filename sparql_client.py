@@ -2,7 +2,7 @@ import os
 import re
 
 import httpx
-from SPARQLWrapper import JSON, POST, SPARQLWrapper
+from SPARQLWrapper import BASIC, JSON, POST, SPARQLWrapper
 
 from config import settings
 
@@ -11,6 +11,19 @@ class SparqlClient:
     def __init__(self):
         self.query_url = settings.FUSEKI_QUERY
         self.update_url = settings.FUSEKI_UPDATE
+
+    def _has_fuseki_auth(self) -> bool:
+        return bool(settings.FUSEKI_USER and settings.FUSEKI_PASSWORD)
+
+    def _configure_sparql_auth(self, sparql: SPARQLWrapper) -> None:
+        if self._has_fuseki_auth():
+            sparql.setHTTPAuth(BASIC)
+            sparql.setCredentials(settings.FUSEKI_USER, settings.FUSEKI_PASSWORD)
+
+    def _httpx_auth(self):
+        if self._has_fuseki_auth():
+            return httpx.BasicAuth(settings.FUSEKI_USER, settings.FUSEKI_PASSWORD)
+        return None
 
     def _get_query_string(self, query_name: str, params: dict = None) -> str:
         """Lee archivos .sparql heredados y reemplaza variables."""
@@ -44,6 +57,7 @@ class SparqlClient:
 
     def execute_select(self, query_str: str):
         sparql = SPARQLWrapper(self.query_url)
+        self._configure_sparql_auth(sparql)
         sparql.setQuery(query_str)
         sparql.setReturnFormat(JSON)
 
@@ -61,6 +75,7 @@ class SparqlClient:
 
     def execute_sparql_update(self, query_str: str):
         sparql = SPARQLWrapper(self.update_url)
+        self._configure_sparql_auth(sparql)
         sparql.setQuery(query_str)
         sparql.setMethod(POST)
 
@@ -87,6 +102,7 @@ class SparqlClient:
                     self.query_url,
                     data={"query": query_str},
                     headers={"Accept": "application/sparql-results+json"},
+                    auth=self._httpx_auth(),
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -103,6 +119,7 @@ class SparqlClient:
                     self.update_url,
                     data={"update": query_str},
                     headers={"Accept": "application/sparql-results+json"},
+                    auth=self._httpx_auth(),
                 )
                 response.raise_for_status()
                 return True

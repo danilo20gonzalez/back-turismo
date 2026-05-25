@@ -7,6 +7,8 @@ class Settings:
     FUSEKI_URL: str = os.getenv("FUSEKI_URL", "http://localhost:3030/amaturis")
     FUSEKI_QUERY: str = os.getenv("FUSEKI_QUERY", f"{FUSEKI_URL}/query")
     FUSEKI_UPDATE: str = os.getenv("FUSEKI_UPDATE", f"{FUSEKI_URL}/update")
+    FUSEKI_USER: str | None = os.getenv("FUSEKI_USER")
+    FUSEKI_PASSWORD: str | None = os.getenv("FUSEKI_PASSWORD")
     
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-here")
     ALGORITHM: str = "HS256"
