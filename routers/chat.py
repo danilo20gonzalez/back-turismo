@@ -1,17 +1,14 @@
 from fastapi import APIRouter, HTTPException
-import httpx
-import os
+
+from services.groq_service import GroqServiceError, generar_respuesta_con_groq
 from services.ontology_service import obtener_contexto_desde_fuseki
 
 router = APIRouter()
 
-N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
-
 
 @router.post("/chat")
-async def chat_with_n8n(payload: dict):
+async def chat_with_amaturis(payload: dict):
     user_message = payload.get("message")
-    user_id = payload.get("user_id")
 
     if not user_message:
         raise HTTPException(status_code=400, detail="El mensaje es obligatorio")
@@ -30,31 +27,18 @@ async def chat_with_n8n(payload: dict):
             "fallback": True,
         }
 
-    # Construir payload enriquecido para n8n
-    async with httpx.AsyncClient() as client:
-        try:
-            n8n_payload = {
-                "chatInput": user_message,
-                "context": contexto["resumen"],
-                "context_structured": {
-                    "intencion": contexto.get("intencion", "consulta_general"),
-                    "datos": contexto.get("datos", {}),
-                    "total_resultados": contexto.get("total_resultados", 0),
-                    "es_fallback": contexto.get("fallback", False),
-                },
-                "user_id": user_id,
-            }
+    # Groq solo redacta con base en los datos devueltos por la ontología.
+    # Si no hay API key, se alcanza un límite o falla el proveedor, el sistema
+    # conserva una respuesta determinista y no inventa información turística.
+    try:
+        respuesta = await generar_respuesta_con_groq(user_message, contexto)
+    except GroqServiceError as exc:
+        print(f"Aviso del asistente Groq: {exc}")
+        respuesta = None
 
-            response = await client.post(
-                N8N_WEBHOOK_URL,
-                json=n8n_payload,
-                timeout=60.0,
-            )
-
-            response.raise_for_status()
-            return response.json()
-
-        except httpx.HTTPStatusError as e:
-            raise HTTPException(status_code=e.response.status_code, detail="Error en n8n")
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error de conexión: {str(e)}")
+    return {
+        "output": respuesta or contexto["resumen"],
+        "source": "groq" if respuesta else "ontology_fallback",
+        "intencion": contexto.get("intencion", "consulta_general"),
+        "total_resultados": contexto.get("total_resultados", 0),
+    }
